@@ -104,6 +104,8 @@ Barebones_Agent/
 
 The code is not written yet. These commands are the plan. They do not work today.
 
+Python runs through uv (Python 3.12, `pytest`, `pyyaml`). Run `uv sync` once.
+
 Get the model:
 
 ```
@@ -115,15 +117,15 @@ ollama ps                # check the loaded model and its context
 Chat with the agent in a folder:
 
 ```
-python src/harness/python/main.py --config config/baseline.yaml --workdir <folder>
+uv run python src/harness/python/main.py --config config/baseline.yaml --workdir <folder>
 ```
 
 Run the evals:
 
 ```
-python src/evals/run.py --stage 1     # pilot: baseline only
-python src/evals/run.py --stage 2     # one axis at a time: 10 configurations
-python src/evals/run.py               # full grid: 162 configurations
+uv run python src/evals/run.py --stage 1     # pilot: baseline only
+uv run python src/evals/run.py --stage 2     # one axis at a time: 10 configurations
+uv run python src/evals/run.py               # full grid: 162 configurations
 ```
 
 ## How the evals work

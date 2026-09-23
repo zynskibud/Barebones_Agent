@@ -583,10 +583,10 @@ table.et { border-collapse: collapse; width: 100%; font-size: 14px; }
         <table class="et wide">
           <thead><tr><th>Who</th><th>Step</th><th>Status</th></tr></thead>
           <tbody>
-            <tr><td>Main session</td><td><code>brew install ollama go</code>, then <code>ollama pull qwen3:8b</code> (about 5 GB). Check <code>num_ctx</code> and the temperature. Record them in <code>baseline.yaml</code>.</td><td>Open</td></tr>
-            <tr><td>Main session</td><td>uv project: Python 3.12, <code>pytest</code>, <code>pyyaml</code></td><td>Open</td></tr>
+            <tr><td>Main session</td><td><code>brew install ollama go</code>, then <code>ollama pull qwen3:8b</code> (about 5 GB). Check <code>num_ctx</code> and the temperature. Record them in <code>baseline.yaml</code>.</td><td>Done. Model max 40960, Ollama default 4096, set to 32768. Temperature default 0.6.</td></tr>
+            <tr><td>Main session</td><td>uv project: Python 3.12, <code>pytest</code>, <code>pyyaml</code></td><td>Done</td></tr>
             <tr><td>You</td><td>Start Docker Desktop</td><td>Open</td></tr>
-            <tr><td>You</td><td>E2B account. The API key goes in <code>.env</code> as <code>E2B_API_KEY</code>. <code>.env</code> is gitignored.</td><td>Account done</td></tr>
+            <tr><td>You</td><td>E2B account. The API key goes in <code>.env</code> as <code>E2B_API_KEY</code>. <code>.env</code> is gitignored.</td><td>Account done. The key is not in <code>.env</code> yet.</td></tr>
           </tbody>
         </table>
       </div>

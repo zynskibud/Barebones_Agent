@@ -6,8 +6,8 @@ codebase: python     # the task language: python, typescript, or rust
 model: qwen3:8b      # the Ollama tag
 think: false         # the model thinking mode: false or true
 # Model settings. Check before you set.
-num_ctx: null        # the Ollama context window. null = use the Ollama default. Check with `ollama ps`, set only if too small.
-temperature: null    # null = the model default. Every run records the value that was used.
+num_ctx: 32768       # the Ollama context window. Checked 2026-09-23: model max 40960, Ollama default 4096 (too small). Set to 32768.
+temperature: null    # null = the model default (0.6 for qwen3:8b, checked 2026-09-23). Every run records the value that was used.
 # Limits
 max_turns: 40        # the maximum number of model turns
 max_seconds: 600     # the maximum wall time for one run
