@@ -104,88 +104,47 @@ If `num_ctx` or `temperature` is null, the harness records the value that `ollam
 The harness does not send thinking content back in later messages.
 To verify: check the Ollama docs for a case where Ollama requires the thinking content in later messages.
 
-## 6. System prompt
+## 6. Shared data files
 
-Every harness and every configuration uses this text, byte for byte:
+The exact strings live in data files, not in the code. Every harness loads these files at start. No harness copies their text into its code.
 
-```
-You work inside one folder. All paths are relative to that folder.
-The user will ask you to change the code in the folder.
-Use your tools to look at the files, make the change, and check it when you can.
-Do not ask the user questions. Nobody will answer.
-Make the smallest change that does what the user asked.
-When the change is done, stop and reply with one short sentence that says what you changed.
-```
-
-The tool descriptions say which tools exist. The system prompt text must not name tools.
-
-## 7. Tool definitions
-
-The harness sends these definitions exactly. Descriptions and schemas are byte for byte.
-
-```json
-{"type":"function","function":{"name":"read_file","description":"Read a text file in the working folder and return its contents.","parameters":{"type":"object","properties":{"path":{"type":"string","description":"File path, relative to the working folder."}},"required":["path"],"additionalProperties":false}}}
-```
-
-```json
-{"type":"function","function":{"name":"list_files","description":"List the files and folders in a folder of the working folder. Returns one name per line. Folder names end with /.","parameters":{"type":"object","properties":{"path":{"type":"string","description":"Folder path, relative to the working folder. Default is \".\"."}},"required":[],"additionalProperties":false}}}
-```
-
-```json
-{"type":"function","function":{"name":"edit_file","description":"Replace old_str with new_str in a file. old_str must match the file text exactly once. To create a new file, give an empty old_str and the full file text as new_str.","parameters":{"type":"object","properties":{"path":{"type":"string","description":"File path, relative to the working folder."},"old_str":{"type":"string","description":"The exact text to replace. Empty to create a new file."},"new_str":{"type":"string","description":"The new text."}},"required":["path","old_str","new_str"],"additionalProperties":false}}}
-```
-
-```json
-{"type":"function","function":{"name":"bash","description":"Run a shell command in the working folder. Returns stdout, stderr, and the exit code. The command stops after 30 seconds.","parameters":{"type":"object","properties":{"command":{"type":"string","description":"The shell command to run."}},"required":["command"],"additionalProperties":false}}}
-```
-
-Tool sets:
-
-| Set | Tools |
+| File | Holds |
 |---|---|
-| `files` | `read_file`, `list_files`, `edit_file` |
-| `bash` | `bash` |
-| `files-bash` | `read_file`, `list_files`, `edit_file`, `bash` |
+| `config/system_prompt.txt` | The system prompt. |
+| `config/tools.json` | The four tool definitions, and the three tool sets. |
+| `config/messages.json` | The error strings, the success strings, the truncation line, and the bash exit-code line. |
 
-The harness sends the tools in the order of this table.
+Rules:
+
+- The harness uses the system prompt with trailing whitespace removed.
+- The system prompt must not name tools. The tool definitions say which tools exist.
+- Placeholders use braces, for example `{path}`. The harness replaces each placeholder with its value. `{path}` is the path as the model sent it. `{detail}` is free text. `{n}` is a number.
+- If a string must change, change the data file. Do not change the code.
+
+## 7. Tools
+
+`config/tools.json` has two keys:
+
+- `tools`: one definition for each tool, in the OpenAI tools format. The harness sends each definition exactly as stored.
+- `sets`: the tools in each tool set, in order. The harness sends the tools in this order.
+
 If the model calls a tool that is not in the set, the harness treats the call as malformed.
 
 `edit_file` rules:
 
-- If `old_str` is empty and the file does not exist, create the file with `new_str`.
-- If `old_str` is empty and the file exists, return `error: <path> already exists`.
-- If `old_str` matches exactly once, replace it and return `ok: edited <path>`. For a new file, return `ok: created <path>`.
+- If `old_str` is empty and the file does not exist, create the file with `new_str`. Return `ok.created`.
+- If `old_str` is empty and the file exists, return `errors.already_exists`.
+- If `old_str` matches exactly once, replace it. Return `ok.edited`.
+- If `old_str` matches zero times, return `errors.old_str_not_found`.
+- If `old_str` matches more than once, return `errors.old_str_multiple`.
 
-## 8. Tool results and errors
+## 8. Tool results
 
-Tool results are plain text. The harness uses these error strings exactly:
+Tool results are plain text. Every error and success string comes from `config/messages.json`.
 
-```
-error: <path> is outside the working folder
-error: <path> not found
-error: <path> is a directory
-error: <path> already exists
-error: old_str not found in <path>
-error: old_str matches more than once in <path>
-error: command timed out after 30 seconds
-error: unknown tool <name>
-error: invalid arguments for <name>: <detail>
-```
+Truncation: if a tool result is longer than 10,000 characters, the harness keeps the first 10,000 characters. It then adds a new line with `truncated`, where `{n}` is the number of characters cut.
 
-`<path>` is the path as the model sent it. `<detail>` is free text.
-
-Truncation: if a tool result is longer than 10,000 characters, the harness keeps the first 10,000 characters and adds this line:
-
-```
-[truncated: N characters omitted]
-```
-
-`bash` runs in the working folder with a 30-second timeout.
-The result is stdout, then stderr, then this final line:
-
-```
-exit code: N
-```
+`bash` runs in the working folder with a 30-second timeout. The result is stdout, then stderr, then a final line with `exit_code`. If the command times out, the result is `errors.timeout`.
 
 ## 9. Limits
 
@@ -248,7 +207,7 @@ The harness writes these keys. It writes `passed` and `grader_output` as `null`.
 
 - Every file tool path goes through `safe_path`.
 - `safe_path` resolves the path. It follows `..` and symlinks.
-- If the resolved path is outside the working folder, the tool returns `error: <path> is outside the working folder`.
+- If the resolved path is outside the working folder, the tool returns `errors.outside_folder`.
 - `bash` cannot be limited by path on the laptop (`env: local`). A command can read or write any file that the user can.
 - The harness must log every bash command in the transcript.
 - The eval harness searches every transcript for `hidden_tests` and `solution`. If it finds either string, it flags the trial.
@@ -260,9 +219,8 @@ The harness writes these keys. It writes `passed` and `grader_output` as `null`.
 - [ ] The configuration ID matches section 3 for every axis value.
 - [ ] The loop and the stop reasons match section 4.
 - [ ] The request body matches section 5, with no extra fields.
-- [ ] The system prompt bytes match section 6.
-- [ ] The tool JSON bytes and tool order match section 7.
-- [ ] The error strings match section 8 exactly.
+- [ ] The harness loads the three data files in section 6 and copies no text from them into its code.
+- [ ] The tool order matches `sets` in `config/tools.json`.
 - [ ] Truncation and the bash result format match section 8.
 - [ ] The transcript record types and fields match section 10.
 - [ ] `result.json` has exactly the keys in section 11.

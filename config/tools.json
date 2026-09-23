@@ -1,0 +1,108 @@
+{
+  "tools": {
+    "read_file": {
+      "type": "function",
+      "function": {
+        "name": "read_file",
+        "description": "Read a text file in the working folder and return its contents.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string",
+              "description": "File path, relative to the working folder."
+            }
+          },
+          "required": [
+            "path"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "list_files": {
+      "type": "function",
+      "function": {
+        "name": "list_files",
+        "description": "List the files and folders in a folder of the working folder. Returns one name per line. Folder names end with /.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string",
+              "description": "Folder path, relative to the working folder. Default is \".\"."
+            }
+          },
+          "required": [],
+          "additionalProperties": false
+        }
+      }
+    },
+    "edit_file": {
+      "type": "function",
+      "function": {
+        "name": "edit_file",
+        "description": "Replace old_str with new_str in a file. old_str must match the file text exactly once. To create a new file, give an empty old_str and the full file text as new_str.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string",
+              "description": "File path, relative to the working folder."
+            },
+            "old_str": {
+              "type": "string",
+              "description": "The exact text to replace. Empty to create a new file."
+            },
+            "new_str": {
+              "type": "string",
+              "description": "The new text."
+            }
+          },
+          "required": [
+            "path",
+            "old_str",
+            "new_str"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "bash": {
+      "type": "function",
+      "function": {
+        "name": "bash",
+        "description": "Run a shell command in the working folder. Returns stdout, stderr, and the exit code. The command stops after 30 seconds.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "command": {
+              "type": "string",
+              "description": "The shell command to run."
+            }
+          },
+          "required": [
+            "command"
+          ],
+          "additionalProperties": false
+        }
+      }
+    }
+  },
+  "sets": {
+    "files": [
+      "read_file",
+      "list_files",
+      "edit_file"
+    ],
+    "bash": [
+      "bash"
+    ],
+    "files-bash": [
+      "read_file",
+      "list_files",
+      "edit_file",
+      "bash"
+    ]
+  }
+}

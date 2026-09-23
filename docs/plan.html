@@ -493,7 +493,10 @@ table.et { border-collapse: collapse; width: 100%; font-size: 14px; }
 │
 ├── config/
 │   ├── baseline.yaml             <span class="c">one configuration, for a chat</span>
-│   └── grid.yaml                 <span class="c">the axes, for the evals</span>
+│   ├── grid.yaml                 <span class="c">the axes, for the evals</span>
+│   ├── system_prompt.txt         <span class="c">the system prompt, shared by every harness</span>
+│   ├── tools.json                <span class="c">the tool definitions and the tool sets</span>
+│   └── messages.json             <span class="c">the error and result strings</span>
 │
 ├── src/
 │   ├── harness/                  <span class="s k-harness">← harness seam: one folder per language</span>
@@ -551,7 +554,7 @@ table.et { border-collapse: collapse; width: 100%; font-size: 14px; }
         <li>Write <code>README.md</code>: what the project is, and how to run it.</li>
         <li>Write <code>CLAUDE.md</code>: the rules in the table above.</li>
         <li>Write a first draft of <code>docs/harness-spec.md</code>.</li>
-        <li>Write <code>config/baseline.yaml</code> and <code>config/grid.yaml</code>.</li>
+        <li>Write <code>config/baseline.yaml</code> and <code>config/grid.yaml</code>, and the shared data files: <code>system_prompt.txt</code>, <code>tools.json</code>, and <code>messages.json</code>.</li>
         <li>Write <code>.gitignore</code>, with <code>runs/</code> in it.</li>
       </ol>
       <p class="done"><b>Done when:</b> the repo matches the tree, and each folder has a one-line purpose in the README.</p>

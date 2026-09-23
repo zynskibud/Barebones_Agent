@@ -1,0 +1,19 @@
+{
+  "errors": {
+    "outside_folder": "error: {path} is outside the working folder",
+    "not_found": "error: {path} not found",
+    "is_directory": "error: {path} is a directory",
+    "already_exists": "error: {path} already exists",
+    "old_str_not_found": "error: old_str not found in {path}",
+    "old_str_multiple": "error: old_str matches more than once in {path}",
+    "timeout": "error: command timed out after 30 seconds",
+    "unknown_tool": "error: unknown tool {name}",
+    "invalid_arguments": "error: invalid arguments for {name}: {detail}"
+  },
+  "ok": {
+    "edited": "ok: edited {path}",
+    "created": "ok: created {path}"
+  },
+  "truncated": "[truncated: {n} characters omitted]",
+  "exit_code": "exit code: {n}"
+}

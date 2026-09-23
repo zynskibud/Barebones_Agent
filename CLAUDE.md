@@ -10,7 +10,7 @@ This is a hand-built learning project. The owner writes every part by hand.
 
 ## Structure rules
 
-1. `src/` holds only code. Tasks, config, and results are data. All three harness languages read the same data.
+1. `src/` holds only code. Tasks, config, and results are data. All three harness languages read the same data. The system prompt, the tool definitions, and the error strings are in `config/system_prompt.txt`, `config/tools.json`, and `config/messages.json`. Never copy their text into code.
 2. The eval harness never imports the agent. It starts the agent as a separate program. This process boundary makes the harness-language axis possible.
 3. `docs/harness-spec.md` is the contract. It fixes the CLI flags, the system prompt, the tool descriptions, the transcript format, and the limits. Every harness follows it word for word.
 4. Each seam is a folder. A new part is a new file in the correct folder. Nothing else changes.

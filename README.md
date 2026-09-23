@@ -48,7 +48,10 @@ Barebones_Agent/
 │   └── harness-spec.md           the rules that every harness must follow
 ├── config/
 │   ├── baseline.yaml             one configuration, for a chat
-│   └── grid.yaml                 the axes, for the evals
+│   ├── grid.yaml                 the axes, for the evals
+│   ├── system_prompt.txt         the system prompt, shared by every harness
+│   ├── tools.json                the tool definitions and the tool sets
+│   └── messages.json             the error and result strings
 ├── src/
 │   ├── harness/                  the agent: one folder per language
 │   │   ├── python/
@@ -78,7 +81,7 @@ Barebones_Agent/
 |---|---|
 | `Barebones_Agent/` | The repo root. |
 | `docs/` | The plan page and the harness contract. |
-| `config/` | The configuration choices. The code reads them, and the code does not hold them. |
+| `config/` | The configuration choices, and the shared text that every harness loads: the system prompt, the tool definitions, and the error strings. The code reads them, and the code does not hold them. |
 | `src/` | Code only. No tasks, config, or results. |
 | `src/harness/` | The agent. One folder for each harness language. |
 | `src/harness/python/` | The Python agent: entry point, composition root, loop, model client. |
@@ -143,4 +146,4 @@ Nothing runs yet.
 ## More
 
 - `docs/plan.html` has the diagram, the configurations, the evals, and the plan.
-- `docs/harness-spec.md` is the contract. It fixes the CLI flags, the system prompt, the tool descriptions, the transcript format, and the limits.
+- `docs/harness-spec.md` is the contract. It fixes the CLI flags, the loop, the transcript format, and the limits. It points to the shared data files in `config/` for the exact text.
