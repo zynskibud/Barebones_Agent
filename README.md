@@ -1,6 +1,6 @@
 # Barebones Agent
 
-Barebones Agent is one agent loop, a few tools, and one local model. The model is Qwen3 8B through Ollama. The project uses no framework. It tests the agent across many configurations. This is a learning project. The owner builds every part by hand to learn how agents work and how to evaluate them.
+Barebones Agent builds an agent harness from scratch. It evaluates which models and agent configurations work for different kinds of tasks. At this time, the project tests only software engineering (SWE) tasks.
 
 ## Configurations
 
@@ -139,7 +139,7 @@ The evals have three stages. Stage 1 is a pilot on the baseline. Stage 2 changes
 ## Status
 
 - Part 1: the repo structure. Done.
-- Part 2: the Python harness on the laptop. It adds all three tool sets, both thinking modes, and task 01. Next.
+- Part 2: build every part in six subagent waves. The Plan tab in `docs/plan.html` lists the waves. Next.
 
 Nothing runs yet.
 

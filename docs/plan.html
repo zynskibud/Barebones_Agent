@@ -230,6 +230,12 @@ table.et { border-collapse: collapse; width: 100%; font-size: 14px; }
 .done b { font-weight: 600; }
 .cfg-line { font: 500 14px var(--mono); overflow-wrap: anywhere; margin: 0; }
 .cfg-line .open { color: var(--d-tools); }
+.sub-h { font-size: 14px; font-weight: 600; margin: 6px 0 0; }
+.note { margin: 0; color: var(--muted); font-size: 14px; max-width: 68ch; }
+.et.wide td:first-child { white-space: nowrap; }
+.et.waves td:first-child { white-space: normal; font-weight: 400; }
+.et.waves td.wave { white-space: nowrap; font-weight: 600; }
+.steps li b { font-weight: 600; }
 </style>
 
 <div class="wrap">
@@ -473,13 +479,12 @@ table.et { border-collapse: collapse; width: 100%; font-size: 14px; }
 
   <!-- PLAN -->
   <section class="panel" id="panel-plan" role="tabpanel" aria-labelledby="tab-plan" hidden>
-    <div><span class="status">Draft for review</span></div>
-    <p class="lede">The plan has two parts. <b>Part 1</b> builds the full repo structure, so that every axis has a place from the start. <b>Part 2</b> builds the simplest configuration inside that structure.</p>
+    <p class="lede">The plan has two parts. <b>Part 1</b> built the full repo structure, so that every axis has a place from the start. <b>Part 2</b> builds every part, in waves of subagents.</p>
 
     <!-- PART 1 -->
     <div class="view">
       <div class="view-head">
-        <span class="part-tag">Part 1</span>
+        <span class="part-tag">Part 1 · done</span>
         <h2>Repo structure</h2>
         <p>The full tree, with a colored marker on each seam. A seam is the place in the code where one part can be swapped for another.</p>
       </div>
@@ -563,36 +568,58 @@ table.et { border-collapse: collapse; width: 100%; font-size: 14px; }
     <!-- PART 2 -->
     <div class="view">
       <div class="view-head">
-        <span class="part-tag">Part 2</span>
-        <h2>The simplest configuration</h2>
-        <p>One choice on the harness, environment, codebase, and model axes. All three tool sets and both thinking modes, because they are cheap to add inside one harness. That gives 6 configurations.</p>
+        <span class="part-tag">Part 2 · next</span>
+        <h2>Build waves</h2>
+        <p>Every part gets built now, in waves of subagents. Two facts set the order.</p>
       </div>
-      <p class="cfg-line">py.<span class="k-tools">{files | bash | files-bash}</span>.local.python.qwen3-8b.<span class="k-think">{no-think | think}</span></p>
+      <ol class="steps">
+        <li><b>The Python harness is the reference.</b> It settles the open points in the spec against real Ollama, and it defines the env interface. The TypeScript and Go ports copy a finished design, so they come last.</li>
+        <li><b>Each agent owns one folder and never runs git.</b> The main session commits at the end of each wave. Only one agent per wave edits the spec, the README, <code>CLAUDE.md</code>, and this page. Every other agent reports the changes it needs, and the next integration wave makes them.</li>
+      </ol>
+
+      <h3 class="sub-h">Wave 0: setup, no agents</h3>
+      <p class="note">This Mac: Apple M4, 24 GB. Present: Docker 29, Node 20, cargo 1.91, uv. Missing: Ollama, Go. The system Python is 3.9.</p>
       <div class="twrap">
-        <table class="et">
-          <thead><tr><th>Axis</th><th>Choice</th><th>Where it lives</th><th>Seam kind</th></tr></thead>
+        <table class="et wide">
+          <thead><tr><th>Who</th><th>Step</th><th>Status</th></tr></thead>
           <tbody>
-            <tr><td><span class="axis-tag"><i class="b-harness"></i>Harness</span></td><td>Python</td><td><code>src/harness/python/</code></td><td>The whole program</td></tr>
-            <tr><td><span class="axis-tag"><i class="b-tools"></i>Tools</span></td><td>All three sets</td><td><code>src/harness/python/tools/</code></td><td>Behavior</td></tr>
-            <tr><td><span class="axis-tag"><i class="b-env"></i>Environment</span></td><td>Laptop</td><td><code>src/harness/python/env/local.py</code></td><td>Behavior</td></tr>
-            <tr><td><span class="axis-tag"><i class="b-code"></i>Codebase</span></td><td>Python</td><td><code>tasks/python/</code></td><td>Data</td></tr>
-            <tr><td><span class="axis-tag"><i class="b-model"></i>Model</span></td><td>Qwen3 8B, through Ollama</td><td><code>config/baseline.yaml</code>, used in <code>model.py</code></td><td>Value</td></tr>
-            <tr><td><span class="axis-tag"><i class="b-think"></i>Thinking</span></td><td>On and off</td><td><code>config/baseline.yaml</code>, sent as <code>think</code> in <code>model.py</code></td><td>Value</td></tr>
+            <tr><td>Main session</td><td><code>brew install ollama go</code>, then <code>ollama pull qwen3:8b</code> (about 5 GB). Check <code>num_ctx</code> and the temperature. Record them in <code>baseline.yaml</code>.</td><td>Open</td></tr>
+            <tr><td>Main session</td><td>uv project: Python 3.12, <code>pytest</code>, <code>pyyaml</code></td><td>Open</td></tr>
+            <tr><td>You</td><td>Start Docker Desktop</td><td>Open</td></tr>
+            <tr><td>You</td><td>E2B account. The API key goes in <code>.env</code> as <code>E2B_API_KEY</code>. <code>.env</code> is gitignored.</td><td>Account done</td></tr>
           </tbody>
         </table>
       </div>
 
-      <ol class="steps">
-        <li>Install Ollama and pull <code>qwen3:8b</code>. Send one test request that uses a tool.</li>
-        <li>Check the context length. <code>ollama show qwen3:8b</code> gives the model maximum. <code>ollama ps</code> gives the window that Ollama uses. If the window is small, set it. Record the default temperature.</li>
-        <li><code>model.py</code>: send the messages to Ollama with the <code>think</code> value from the config, and return the reply.</li>
-        <li><code>loop.py</code>: a chat loop with no tools.</li>
-        <li><code>env/local.py</code>: read, write, and list files, and run commands, inside one folder only.</li>
-        <li><code>tools/</code>: <code>files.py</code> and <code>bash.py</code>, and the three sets built from them. Each tool calls <code>env</code>, never the machine directly.</li>
-        <li><code>build.py</code> and <code>main.py</code>: read <code>baseline.yaml</code>, build the agent, and start the chat.</li>
-        <li><code>tasks/python/task-01-cart-total/</code>: the starting code, the prompt, the hidden tests, and the reference solution.</li>
-      </ol>
-      <p class="done"><b>Done when:</b> each of the 6 configurations runs task 01 in chat mode, in a temporary copy of the repo. The hidden tests pass in at least one configuration.</p>
+      <h3 class="sub-h">Waves 1 to 6</h3>
+      <div class="twrap">
+        <table class="et waves">
+          <thead><tr><th>Wave</th><th>Agent</th><th>Model</th><th>Owns</th><th>Done when</th></tr></thead>
+          <tbody>
+            <tr><td class="wave" rowspan="3">1. Reference</td><td>A. Python harness: loop, model, tools, <code>env/local</code>, chat mode and task mode</td><td>Fable 5.1</td><td><code>src/harness/python/</code>, and the spec (this agent only)</td><td>All 6 laptop configurations run task 01 in chat mode against real Ollama. The 5 open points are settled in the spec.</td></tr>
+            <tr><td>B. Task suite: 10 Python tasks</td><td>Fable 5.1</td><td><code>tasks/python/</code></td><td>Every task fails on the start code and passes on the solution.</td></tr>
+            <tr><td>C. Eval harness: run, suite, grade, report, <code>--stage</code></td><td>Opus 5.5</td><td><code>src/evals/</code></td><td>The grid math, the stage selection, and the pass@k math are tested. End to end waits for wave 2.</td></tr>
+            <tr><td class="wave">2. Pilot</td><td>One agent. Run stage 1 end to end. Fix bugs anywhere. Validate the tasks. Record the time per trial. Update the README and this page.</td><td>Fable 5.1</td><td>Whole repo</td><td>Stage 1 completes: 30 trials in <code>runs/</code>. The baseline score is above about 20%.</td></tr>
+            <tr><td class="wave" rowspan="4">3. Python across every axis</td><td>D. Docker env, and a task image with the three toolchains</td><td>Opus 5.5</td><td><code>env/docker.py</code>, <code>docker/</code></td><td>Baseline task 01 runs in a container.</td></tr>
+            <tr><td>E. Cloud env (E2B)</td><td>Opus 5.5</td><td><code>env/cloud.py</code></td><td>Baseline task 01 runs in a sandbox.</td></tr>
+            <tr><td>F. TypeScript tasks: port all 10</td><td>Opus 5.5</td><td><code>tasks/typescript/</code></td><td>The same fail-then-pass check, with the Node test runner.</td></tr>
+            <tr><td>G. Rust tasks: port all 10</td><td>Opus 5.5</td><td><code>tasks/rust/</code></td><td>The same check, with <code>cargo test</code>.</td></tr>
+            <tr><td class="wave">4. Integration</td><td>One agent. Run the baseline across the 3 envs and the 3 codebases. Fix. Update the docs. Freeze the spec as v1.</td><td>Fable 5.1</td><td>Whole repo</td><td>9 Python-harness configurations pass a smoke run.</td></tr>
+            <tr><td class="wave" rowspan="2">5. Ports</td><td>H. TypeScript harness, all three envs</td><td>Opus 5.5</td><td><code>src/harness/typescript/</code></td><td>Task 01 gives the same result as the Python harness.</td></tr>
+            <tr><td>I. Go harness, all three envs</td><td>Opus 5.5</td><td><code>src/harness/go/</code></td><td>Same.</td></tr>
+            <tr><td class="wave">6. Integration</td><td>One agent. Harness check on task 01 across the three languages. Stage 2 smoke run. Final docs.</td><td>Fable 5.1</td><td>Whole repo</td><td>Stage 2 completes: 10 configurations.</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="note">Six commits, one per wave. One push after wave 6. Twelve agent runs, never more than four at once.</p>
+
+      <h3 class="sub-h">The model rule</h3>
+      <ul class="notes">
+        <li><b>Fable 5.1</b> for work that needs judgment across the whole repo: the reference harness, the task design, and every integration wave. These agents decide things and debug across boundaries.</li>
+        <li><b>Opus 5.5</b> for work against a fixed contract: the eval harness, the two ports, the two envs, and the task ports. The spec and the Python reference tell them what correct looks like.</li>
+        <li>No Sonnet or Haiku. The cheap work in this project is too small to split off.</li>
+      </ul>
+      <p class="done"><b>Done when:</b> stage 2 completes, and every wave is committed and pushed.</p>
     </div>
 
     <div class="view">
