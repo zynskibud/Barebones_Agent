@@ -1,0 +1,13 @@
+# One configuration, for a chat.
+harness: py          # the harness program: py, ts, or go
+tools: files-bash    # the tool set: files, bash, or files-bash
+env: local           # where the tools run: local, docker, or cloud
+codebase: python     # the task language: python, typescript, or rust
+model: qwen3:8b      # the Ollama tag
+think: false         # the model thinking mode: false or true
+# Model settings. Check before you set.
+num_ctx: null        # the Ollama context window. null = use the Ollama default. Check with `ollama ps`, set only if too small.
+temperature: null    # null = the model default. Every run records the value that was used.
+# Limits
+max_turns: 40        # the maximum number of model turns
+max_seconds: 600     # the maximum wall time for one run

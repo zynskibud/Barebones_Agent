@@ -1,0 +1,694 @@
+<title>Barebones Agent Grid</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+:root {
+  --bg: #F2F4F6;
+  --surface: #FFFFFF;
+  --ink: #16202A;
+  --muted: #5A6775;
+  --line: #D3DAE1;
+  --soft: #E7EBEF;
+  --focus: #2F6FB2;
+  --d-harness: #2F6FB2;
+  --d-tools: #7A4FB5;
+  --d-env: #2A8466;
+  --d-code: #A86A12;
+  --d-model: #B8402F;
+  --d-think: #A3367A;
+  --sans: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: #10151B;
+    --surface: #18202A;
+    --ink: #E4E9EE;
+    --muted: #93A1B0;
+    --line: #2C3743;
+    --soft: #1F2934;
+    --focus: #7FB0E6;
+    --d-harness: #7FB0E6;
+    --d-tools: #B597E0;
+    --d-env: #6CC7A5;
+    --d-code: #E0A955;
+    --d-model: #EE8B7B;
+    --d-think: #E48CC0;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #10151B;
+  --surface: #18202A;
+  --ink: #E4E9EE;
+  --muted: #93A1B0;
+  --line: #2C3743;
+  --soft: #1F2934;
+  --focus: #7FB0E6;
+  --d-harness: #7FB0E6;
+  --d-tools: #B597E0;
+  --d-env: #6CC7A5;
+  --d-code: #E0A955;
+  --d-model: #EE8B7B;
+  --d-think: #E48CC0;
+}
+
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--sans);
+  font-size: 15px;
+  line-height: 1.5;
+  padding-inline: 16px;
+  padding-block: 24px 48px;
+}
+.wrap { max-width: 920px; margin: 0 auto; display: grid; gap: 20px; }
+
+header { display: grid; gap: 4px; }
+h1 { font-size: 22px; font-weight: 600; margin: 0; text-wrap: balance; letter-spacing: -0.01em; }
+.sub { color: var(--muted); margin: 0; font-size: 14px; }
+.sub code { font-family: var(--mono); font-size: 13px; }
+
+.tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--line); }
+.tab {
+  font: 500 14px var(--sans);
+  color: var(--muted);
+  background: none;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  padding: 8px 14px;
+  margin-bottom: -1px;
+  cursor: pointer;
+}
+.tab[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--ink); }
+.tab:focus-visible, button:focus-visible, summary:focus-visible, .leaf:focus-visible {
+  outline: 2px solid var(--focus); outline-offset: 2px; border-radius: 3px;
+}
+
+.panel { display: grid; gap: 16px; }
+
+/* Diagram */
+.figure {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 16px;
+  overflow-x: auto;
+}
+.figure svg { display: block; width: 100%; min-width: 620px; height: auto; }
+svg .box { fill: var(--surface); stroke: var(--ink); stroke-width: 1.4; }
+svg .box.env { fill: var(--soft); }
+svg .t-title { font: 600 15px var(--sans); fill: var(--ink); }
+svg .t-body { font: 400 12.5px var(--mono); fill: var(--muted); }
+svg .t-arrow { font: 500 11.5px var(--mono); fill: var(--muted); }
+svg .wire { stroke: var(--ink); stroke-width: 1.4; fill: none; }
+svg .head { fill: var(--ink); }
+svg .chip-bg { stroke: none; }
+svg .chip-t { font: 500 11px var(--mono); fill: var(--surface); }
+svg .c-harness { fill: var(--d-harness); }
+svg .c-tools { fill: var(--d-tools); }
+svg .c-env { fill: var(--d-env); }
+svg .c-code { fill: var(--d-code); }
+svg .c-model { fill: var(--d-model); }
+svg .c-think { fill: var(--d-think); }
+
+.notes { display: grid; gap: 8px; margin: 0; padding-left: 18px; max-width: 68ch; }
+.notes li { color: var(--ink); }
+.notes b { font-weight: 600; }
+
+/* Configurations */
+.formula { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-family: var(--mono); font-size: 13px; }
+.formula .ax {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 3px 8px; border-radius: 4px;
+  border: 1px solid var(--line); background: var(--surface);
+}
+.formula i { width: 8px; height: 8px; border-radius: 2px; display: inline-block; }
+.formula .op { color: var(--muted); }
+.formula .total { font-weight: 500; }
+.b-harness { background: var(--d-harness); }
+.b-tools { background: var(--d-tools); }
+.b-env { background: var(--d-env); }
+.b-code { background: var(--d-code); }
+.b-model { background: var(--d-model); }
+.b-think { background: var(--d-think); }
+
+.view { display: grid; gap: 12px; }
+.view-head { display: grid; gap: 2px; border-top: 1px solid var(--line); padding-top: 16px; }
+.view-head h2 { font-size: 17px; font-weight: 600; margin: 0; }
+.view-head p { margin: 0; color: var(--muted); font-size: 14px; max-width: 68ch; }
+
+/* Axes */
+.axes-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+.axis-col {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-top: 3px solid var(--c);
+  border-radius: 6px;
+  padding: 10px;
+  margin: 0;
+  min-width: 0;
+  display: grid; gap: 4px; align-content: start;
+}
+.axis-col legend { display: contents; }
+.axis-name {
+  display: flex; justify-content: space-between; align-items: baseline;
+  font: 500 11px var(--mono); text-transform: uppercase; letter-spacing: 0.06em;
+  color: var(--c); padding-bottom: 4px;
+}
+.axis-name span:last-child { color: var(--muted); }
+.opt { display: block; position: relative; cursor: pointer; }
+.opt input { position: absolute; opacity: 0; pointer-events: none; }
+.opt span {
+  display: grid; gap: 0;
+  padding: 5px 8px; border-radius: 4px;
+  border: 1px solid transparent;
+  font-size: 14px;
+}
+.opt small { font: 400 11.5px var(--mono); color: var(--muted); overflow-wrap: anywhere; }
+.opt:hover span { background: var(--soft); }
+.opt input:checked + span { border-color: var(--c); background: var(--soft); font-weight: 500; }
+.opt input:focus-visible + span { outline: 2px solid var(--focus); outline-offset: 1px; }
+
+.config {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 12px 14px;
+  display: grid; gap: 4px;
+}
+.config .label { font: 500 11px var(--mono); text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+.config .id { font: 500 15px var(--mono); overflow-wrap: anywhere; }
+.config .path { font: 400 13px var(--mono); color: var(--muted); overflow-wrap: anywhere; }
+
+/* Evals */
+.lede { margin: 0; max-width: 68ch; }
+.lede b { font-weight: 600; }
+.status {
+  display: inline-block; font: 500 11px var(--mono); text-transform: uppercase; letter-spacing: 0.08em;
+  color: var(--d-code); border: 1px solid var(--d-code); border-radius: 3px; padding: 1px 6px;
+}
+.steps { margin: 0; padding-left: 22px; display: grid; gap: 4px; max-width: 68ch; }
+.steps li::marker { font: 500 13px var(--mono); color: var(--muted); }
+.twrap { overflow-x: auto; background: var(--surface); border: 1px solid var(--line); border-radius: 6px; }
+table.et { border-collapse: collapse; width: 100%; font-size: 14px; }
+.et th, .et td { text-align: left; vertical-align: top; padding: 8px 12px; border-bottom: 1px solid var(--line); }
+.et tr:last-child td { border-bottom: 0; }
+.et thead th { font: 500 11px var(--mono); text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); background: var(--soft); white-space: nowrap; }
+.et td:first-child { font-weight: 500; white-space: nowrap; }
+.et code, .lede code, .decide code, .steps code, .done code { font: 400 12.5px var(--mono); }
+.et .num { font-family: var(--mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.axis-tag { display: inline-flex; align-items: center; gap: 6px; }
+.axis-tag i { width: 8px; height: 8px; border-radius: 2px; display: inline-block; flex: none; }
+.decide { margin: 0; padding-left: 22px; display: grid; gap: 10px; max-width: 72ch; }
+.decide li::marker { font: 500 13px var(--mono); color: var(--muted); }
+.decide .q { font-weight: 600; display: block; }
+.decide .rec { color: var(--muted); display: block; }
+.decide .rec b { color: var(--ink); font-weight: 500; }
+
+/* Plan */
+.k-harness { color: var(--d-harness); }
+.k-tools { color: var(--d-tools); }
+.k-env { color: var(--d-env); }
+.k-code { color: var(--d-code); }
+.k-model { color: var(--d-model); }
+.k-think { color: var(--d-think); }
+.tree-box {
+  background: var(--surface); border: 1px solid var(--line); border-radius: 6px;
+  padding: 14px 16px; overflow-x: auto; margin: 0;
+  font: 400 13px/1.55 var(--mono); color: var(--ink);
+}
+.tree-box .c { color: var(--muted); }
+.tree-box .s { font-weight: 500; }
+.part-tag { font: 500 11px var(--mono); text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); }
+.done {
+  background: var(--surface); border: 1px solid var(--line); border-left: 3px solid var(--d-env);
+  border-radius: 4px; padding: 8px 12px; margin: 0; max-width: 72ch; font-size: 14px;
+}
+.done b { font-weight: 600; }
+.cfg-line { font: 500 14px var(--mono); overflow-wrap: anywhere; margin: 0; }
+.cfg-line .open { color: var(--d-tools); }
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>Barebones Agent Grid</h1>
+    <p class="sub">Project H1. One agent loop, tested across 162 configurations.</p>
+  </header>
+
+  <div class="tabs" role="tablist" aria-label="Views">
+    <button class="tab" role="tab" id="tab-diagram" aria-controls="panel-diagram" aria-selected="true">Diagram</button>
+    <button class="tab" role="tab" id="tab-configs" aria-controls="panel-configs" aria-selected="false">Configurations</button>
+    <button class="tab" role="tab" id="tab-evals" aria-controls="panel-evals" aria-selected="false">Evals</button>
+    <button class="tab" role="tab" id="tab-plan" aria-controls="panel-plan" aria-selected="false">Plan</button>
+  </div>
+
+  <!-- DIAGRAM -->
+  <section class="panel" id="panel-diagram" role="tabpanel" aria-labelledby="tab-diagram">
+    <div class="figure">
+      <svg viewBox="0 0 760 520" role="img" aria-labelledby="dg-title">
+        <title id="dg-title">Agent structure: task, harness, model, environment, codebase</title>
+        <defs>
+          <marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 z" class="head"/>
+          </marker>
+        </defs>
+
+        <!-- Task -->
+        <rect class="box" x="40" y="16" width="200" height="50" rx="4"/>
+        <text class="t-title" x="58" y="40">Task</text>
+        <text class="t-body" x="58" y="57">a prompt from you</text>
+
+        <line class="wire" x1="140" y1="66" x2="140" y2="116" marker-end="url(#ah)"/>
+
+        <!-- Harness -->
+        <rect class="box" x="40" y="120" width="330" height="160" rx="4"/>
+        <text class="t-title" x="58" y="146">Harness</text>
+        <text class="t-body" x="58" y="172">loop · stop check</text>
+        <text class="t-body" x="58" y="191">system prompt · history</text>
+        <text class="t-body" x="58" y="210">tool definitions · permissions</text>
+        <g transform="translate(58,238)">
+          <rect class="chip-bg c-harness" width="104" height="22" rx="3"/>
+          <text class="chip-t" x="9" y="15">language ×3</text>
+          <rect class="chip-bg c-tools" x="112" width="104" height="22" rx="3"/>
+          <text class="chip-t" x="121" y="15">tool set ×3</text>
+        </g>
+
+        <!-- Harness <-> Model -->
+        <line class="wire" x1="372" y1="180" x2="476" y2="180" marker-end="url(#ah)"/>
+        <text class="t-arrow" x="380" y="172">messages</text>
+        <line class="wire" x1="476" y1="222" x2="374" y2="222" marker-end="url(#ah)"/>
+        <text class="t-arrow" x="380" y="240">tool calls</text>
+
+        <!-- Model -->
+        <rect class="box" x="480" y="140" width="240" height="120" rx="4"/>
+        <text class="t-title" x="498" y="166">Model</text>
+        <text class="t-body" x="498" y="190">Qwen3 8B</text>
+        <text class="t-body" x="498" y="209">local, through Ollama</text>
+        <g transform="translate(498,222)">
+          <rect class="chip-bg c-model" width="84" height="22" rx="3"/>
+          <text class="chip-t" x="9" y="15">model ×1</text>
+          <rect class="chip-bg c-think" x="92" width="108" height="22" rx="3"/>
+          <text class="chip-t" x="101" y="15">thinking ×2</text>
+        </g>
+
+        <!-- Harness <-> Environment -->
+        <line class="wire" x1="130" y1="282" x2="130" y2="336" marker-end="url(#ah)"/>
+        <text class="t-arrow" x="52" y="314">run tool</text>
+        <line class="wire" x1="230" y1="336" x2="230" y2="284" marker-end="url(#ah)"/>
+        <text class="t-arrow" x="240" y="314">tool result</text>
+
+        <!-- Environment -->
+        <rect class="box env" x="40" y="340" width="680" height="164" rx="4"/>
+        <text class="t-title" x="58" y="366">Environment</text>
+        <text class="t-body" x="58" y="390">laptop · container · VM</text>
+        <text class="t-body" x="58" y="409">shell · git · npm · pytest · cargo</text>
+        <g transform="translate(58,466)">
+          <rect class="chip-bg c-env" width="124" height="22" rx="3"/>
+          <text class="chip-t" x="9" y="15">environment ×3</text>
+        </g>
+
+        <!-- Codebase -->
+        <rect class="box" x="400" y="362" width="296" height="120" rx="4"/>
+        <text class="t-title" x="418" y="388">Codebase</text>
+        <text class="t-body" x="418" y="412">files the agent reads and edits</text>
+        <text class="t-body" x="418" y="431">Python · TypeScript · Rust</text>
+        <g transform="translate(418,446)">
+          <rect class="chip-bg c-code" width="104" height="22" rx="3"/>
+          <text class="chip-t" x="9" y="15">codebase ×3</text>
+        </g>
+      </svg>
+    </div>
+
+    <ul class="notes">
+      <li><b>Agent = model + harness.</b> The harness does not think. It sends messages to the model, runs the tools that the model asks for, and sends the results back.</li>
+      <li><b>The loop is the two return arrows.</b> Tool results go back to the harness, and the harness sends them to the model. This repeats until the stop check ends the task.</li>
+      <li><b>The codebase is inside the environment.</b> It is files on a machine. The shell, git, and the test runners act on those files.</li>
+      <li><b>Each colored chip is one axis in the Configurations tab.</b> 3 × 3 × 3 × 3 × 1 × 2 = 162 configurations. The model is fixed. Thinking is on or off.</li>
+    </ul>
+  </section>
+
+  <!-- PLAN -->
+  <section class="panel" id="panel-configs" role="tabpanel" aria-labelledby="tab-configs" hidden>
+    <div class="formula" aria-label="The five axes">
+      <span class="ax"><i class="b-harness"></i>harness 3</span><span class="op">×</span>
+      <span class="ax"><i class="b-tools"></i>tools 3</span><span class="op">×</span>
+      <span class="ax"><i class="b-env"></i>env 3</span><span class="op">×</span>
+      <span class="ax"><i class="b-code"></i>codebase 3</span><span class="op">×</span>
+      <span class="ax"><i class="b-model"></i>model 1</span><span class="op">×</span>
+      <span class="ax"><i class="b-think"></i>thinking 2</span><span class="op">=</span>
+      <span class="total">162</span>
+    </div>
+
+    <div class="view">
+      <div class="view-head">
+        <h2>The axes</h2>
+        <p>Five independent axes. Pick one value on each axis. Each set of five picks is one configuration.</p>
+      </div>
+      <div class="axes-grid" id="axes"></div>
+      <div class="config" aria-live="polite">
+        <span class="label">Configuration</span>
+        <span class="id" id="cfg-id"></span>
+        <span class="path" id="cfg-path"></span>
+      </div>
+    </div>
+  </section>
+
+  <!-- EVALS -->
+  <section class="panel" id="panel-evals" role="tabpanel" aria-labelledby="tab-evals" hidden>
+    <div><span class="status">Draft for review</span></div>
+    <p class="lede">An eval scores <b>one whole configuration</b> on a fixed task suite. No eval scores the model or any other axis by itself. To measure one axis, compare configurations that differ only on that axis.</p>
+
+    <div class="view">
+      <div class="view-head">
+        <h2>One trial</h2>
+        <p>A trial is one attempt at one task. The eval harness runs these steps for every trial.</p>
+      </div>
+      <ol class="steps">
+        <li>Make a clean copy of the task repo in the environment.</li>
+        <li>Give the task prompt to the agent.</li>
+        <li>Let the agent loop run until it stops, or until it hits a limit.</li>
+        <li>Save the transcript: every message, tool call, and tool result.</li>
+        <li>Copy the hidden tests into the repo and run them. Pass or fail.</li>
+        <li>Record the result, tokens, turns, and time.</li>
+        <li>Delete the environment.</li>
+      </ol>
+    </div>
+
+    <div class="view">
+      <div class="view-head">
+        <h2>Fixed parts</h2>
+        <p>These parts are the eval harness. They stay the same for all 162 configurations. If one of them changes, old scores and new scores cannot be compared.</p>
+      </div>
+      <div class="twrap">
+        <table class="et">
+          <thead><tr><th>Part</th><th>Proposed value</th><th>Reason</th></tr></thead>
+          <tbody>
+            <tr><td>Task suite</td><td>10 tasks, written once, then ported to Python, TypeScript, and Rust (30 in total)</td><td>The same tasks in each language keep the difficulty equal across the codebase axis.</td></tr>
+            <tr><td>Task types</td><td>4 bug fixes, 4 small features, 2 refactors</td><td>These are the common kinds of coding work.</td></tr>
+            <tr><td>Task source</td><td>Written by you, not taken from a public benchmark</td><td>Public benchmark tasks can be in the model's training data.</td></tr>
+            <tr><td>Grader</td><td>Hidden tests that run after the agent stops</td><td>The agent cannot see the hidden tests, so it cannot write code that only satisfies them.</td></tr>
+            <tr><td>Trials per task</td><td class="num">3</td><td>Results change from run to run. One trial cannot show the difference between a real effect and noise.</td></tr>
+            <tr><td>Limits</td><td>40 turns, 10 minutes, same CPU and memory in the container and the VM</td><td>A limit stops a stuck loop. The same limits keep the environment axis fair.</td></tr>
+            <tr><td>System prompt</td><td>One prompt for all configurations</td><td>A different prompt adds a seventh axis.</td></tr>
+            <tr><td>Context window</td><td>Checked with <code>ollama show</code> and <code>ollama ps</code>, set only if too small, and recorded in every run</td><td>If the history grows past the window, Ollama drops old tokens with no error.</td></tr>
+            <tr><td>Temperature</td><td>The model default, recorded in every run</td><td>If the default changes later, the record explains a change in the scores.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="view">
+      <div class="view-head">
+        <h2>Metrics</h2>
+        <p>Every trial records all of these. The first one is the headline number.</p>
+      </div>
+      <div class="twrap">
+        <table class="et">
+          <thead><tr><th>Metric</th><th>Meaning</th></tr></thead>
+          <tbody>
+            <tr><td>Pass rate</td><td>Passed trials ÷ all trials. This is pass@1.</td></tr>
+            <tr><td>pass^3</td><td>The fraction of tasks where all 3 trials passed. This measures reliability.</td></tr>
+            <tr><td>Time per solved task</td><td>Total time ÷ passed trials. The local model costs no money, so time is the real cost.</td></tr>
+            <tr><td>Tokens per trial</td><td>Input and output tokens, recorded separately</td></tr>
+            <tr><td>Turns per trial</td><td>How many times the loop called the model</td></tr>
+            <tr><td>Time per trial</td><td>Wall-clock time from start to grade</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="view">
+      <div class="view-head">
+        <h2>Questions and predictions</h2>
+        <p>One question for each axis. Write the prediction before the run. Then the result can surprise you, and a surprise is where you learn.</p>
+      </div>
+      <div class="twrap">
+        <table class="et">
+          <thead><tr><th>Axis</th><th>Question</th><th>Prediction</th></tr></thead>
+          <tbody>
+            <tr><td><span class="axis-tag"><i class="b-tools"></i>Tools</span></td><td>Which tool set solves the most tasks?</td><td>The 3 file tools score lowest. They cannot run code, so the agent cannot run the tests to check its own work.</td></tr>
+            <tr><td><span class="axis-tag"><i class="b-env"></i>Environment</span></td><td>Does the environment change the score?</td><td>A small change in pass rate. A larger change in time and in infrastructure failures.</td></tr>
+            <tr><td><span class="axis-tag"><i class="b-code"></i>Codebase</span></td><td>Does the language of the codebase change the score?</td><td>Unknown. Rust has less training data, but its compiler gives the agent clear error messages.</td></tr>
+            <tr><td><span class="axis-tag"><i class="b-harness"></i>Harness</span></td><td>Does the harness language change the score?</td><td>No change. If the scores differ, one harness has a bug. This axis is a correctness check.</td></tr>
+            <tr><td><span class="axis-tag"><i class="b-think"></i>Thinking</span></td><td>Does thinking raise the pass rate? What does it cost in time and tokens?</td><td>Thinking raises the pass rate on the harder tasks. It makes each trial much slower.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="view">
+      <div class="view-head">
+        <h2>Run order</h2>
+        <p>Each stage uses the result of the stage before it. Trial counts use 10 tasks and 3 trials for each configuration.</p>
+      </div>
+      <div class="twrap">
+        <table class="et">
+          <thead><tr><th>Stage</th><th>What runs</th><th>Configs</th><th>Trials</th><th>What you learn</th></tr></thead>
+          <tbody>
+            <tr><td>1. Pilot</td><td>One baseline configuration: <code>py.files-bash.local.python.qwen3-8b.no-think</code></td><td class="num">1</td><td class="num">30</td><td>The real time and tokens per trial. Bugs in the eval harness.</td></tr>
+            <tr><td>2. One axis at a time</td><td>Start from the baseline. Change one axis to each of its other values.</td><td class="num">10</td><td class="num">300</td><td>The effect of each axis, from the baseline only.</td></tr>
+            <tr><td>3. Full grid</td><td>All configurations</td><td class="num">162</td><td class="num">4,860</td><td>Interactions. For example: bash helps in the Python codebase but not in the Rust codebase. Stage 2 cannot show this.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="view">
+      <div class="view-head">
+        <h2>Decisions for you</h2>
+        <p>Each item has my recommendation. Change any of them.</p>
+      </div>
+      <ol class="decide">
+        <li><span class="q">How many tasks?</span><span class="rec">Recommendation: <b>10 per language.</b> Fewer tasks make the noise too large. More tasks cost more time to write.</span></li>
+        <li><span class="q">Write your own tasks, or use a public benchmark subset?</span><span class="rec">Recommendation: <b>write your own.</b> Writing tasks and hidden tests teaches you what makes a task gradeable. A public subset is a good second check later.</span></li>
+        <li><span class="q">How many trials per task?</span><span class="rec">Recommendation: <b>3 for stages 1 and 2.</b> Raise it for any comparison where two scores are close.</span></li>
+        <li><span class="q">Which baseline?</span><span class="rec">Recommendation: <b>Python harness, file tools + bash, laptop, Python codebase, Qwen3 8B, thinking off.</b> This is the H1 agent plus a bash tool, so the agent can run tests. Thinking off makes the pilot faster.</span></li>
+        <li><span class="q">Run stage 3?</span><span class="rec">Recommendation: <b>decide after the pilot.</b> The pilot gives the real time per trial. Multiply it by 4,860 before you commit. At 5 minutes per trial, the full grid takes about 400 hours of machine time.</span></li>
+      </ol>
+    </div>
+  </section>
+
+  <!-- PLAN -->
+  <section class="panel" id="panel-plan" role="tabpanel" aria-labelledby="tab-plan" hidden>
+    <div><span class="status">Draft for review</span></div>
+    <p class="lede">The plan has two parts. <b>Part 1</b> builds the full repo structure, so that every axis has a place from the start. <b>Part 2</b> builds the simplest configuration inside that structure.</p>
+
+    <!-- PART 1 -->
+    <div class="view">
+      <div class="view-head">
+        <span class="part-tag">Part 1</span>
+        <h2>Repo structure</h2>
+        <p>The full tree, with a colored marker on each seam. A seam is the place in the code where one part can be swapped for another.</p>
+      </div>
+<pre class="tree-box">Barebones_Agent/
+├── README.md
+├── CLAUDE.md
+├── .gitignore                    <span class="c">runs/ is ignored</span>
+├── docs/
+│   ├── plan.html                 <span class="c">this page</span>
+│   └── harness-spec.md           <span class="c">the rules that every harness must follow</span>
+│
+├── config/
+│   ├── baseline.yaml             <span class="c">one configuration, for a chat</span>
+│   └── grid.yaml                 <span class="c">the axes, for the evals</span>
+│
+├── src/
+│   ├── harness/                  <span class="s k-harness">← harness seam: one folder per language</span>
+│   │   ├── python/
+│   │   │   ├── main.py           <span class="c">starts the agent: chat mode or task mode</span>
+│   │   │   ├── build.py          <span class="c">build_agent(): the composition root</span>
+│   │   │   ├── loop.py           <span class="c">the loop</span>
+│   │   │   ├── model.py          <span class="s k-model">← model seam (value)</span>
+│   │   │   ├── tools/            <span class="s k-tools">← tools seam (behavior)</span>
+│   │   │   │   ├── files.py      <span class="c">read_file, list_files, edit_file</span>
+│   │   │   │   └── bash.py
+│   │   │   └── env/              <span class="s k-env">← environment seam (behavior)</span>
+│   │   │       ├── local.py
+│   │   │       ├── docker.py
+│   │   │       └── cloud.py
+│   │   ├── typescript/           <span class="c">same shape</span>
+│   │   └── go/                   <span class="c">same shape</span>
+│   │
+│   └── evals/                    <span class="c">the eval harness, Python only</span>
+│       ├── run.py                <span class="c">grid → configurations → suites</span>
+│       ├── suite.py              <span class="c">one configuration: tasks × trials</span>
+│       ├── grade.py              <span class="c">runs the hidden tests</span>
+│       └── report.py             <span class="c">pass@1, pass@3, pass^3</span>
+│
+├── tasks/                        <span class="s k-code">← codebase seam (data)</span>
+│   ├── python/
+│   │   └── task-01-cart-total/
+│   │       ├── task.yaml         <span class="c">prompt, test command, limits</span>
+│   │       ├── repo/             <span class="c">the starting code</span>
+│   │       ├── solution/         <span class="c">the reference solution</span>
+│   │       └── hidden_tests/     <span class="c">the grader</span>
+│   ├── typescript/
+│   └── rust/
+│
+└── runs/                         <span class="c">results, not in git</span>
+    └── &lt;config id&gt;/&lt;task&gt;/&lt;trial&gt;/
+        ├── transcript.jsonl
+        └── result.json</pre>
+
+      <div class="twrap">
+        <table class="et">
+          <thead><tr><th>Rule</th><th>Reason</th></tr></thead>
+          <tbody>
+            <tr><td><code>src/</code> holds only code</td><td>Tasks, config, and results are data. All three harness languages read the same data.</td></tr>
+            <tr><td>The eval harness never imports the agent</td><td>It starts the agent as a separate program. This process boundary makes the harness-language axis possible.</td></tr>
+            <tr><td><code>harness-spec.md</code> is the contract</td><td>It fixes the flags, the system prompt, the tool descriptions, the transcript format, and the limits. Every harness follows it word for word.</td></tr>
+            <tr><td>Each seam is a folder</td><td>A new part is a new file in the correct folder. Nothing else changes.</td></tr>
+            <tr><td>Every task has the same four parts</td><td><code>task.yaml</code> holds the facts that differ between languages, for example <code>pytest</code> or <code>cargo test</code>.</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <ol class="steps">
+        <li>Create every folder in the tree, including the seam folders for later parts.</li>
+        <li>Write <code>README.md</code>: what the project is, and how to run it.</li>
+        <li>Write <code>CLAUDE.md</code>: the rules in the table above.</li>
+        <li>Write a first draft of <code>docs/harness-spec.md</code>.</li>
+        <li>Write <code>config/baseline.yaml</code> and <code>config/grid.yaml</code>.</li>
+        <li>Write <code>.gitignore</code>, with <code>runs/</code> in it.</li>
+      </ol>
+      <p class="done"><b>Done when:</b> the repo matches the tree, and each folder has a one-line purpose in the README.</p>
+    </div>
+
+    <!-- PART 2 -->
+    <div class="view">
+      <div class="view-head">
+        <span class="part-tag">Part 2</span>
+        <h2>The simplest configuration</h2>
+        <p>One choice on the harness, environment, codebase, and model axes. All three tool sets and both thinking modes, because they are cheap to add inside one harness. That gives 6 configurations.</p>
+      </div>
+      <p class="cfg-line">py.<span class="k-tools">{files | bash | files-bash}</span>.local.python.qwen3-8b.<span class="k-think">{no-think | think}</span></p>
+      <div class="twrap">
+        <table class="et">
+          <thead><tr><th>Axis</th><th>Choice</th><th>Where it lives</th><th>Seam kind</th></tr></thead>
+          <tbody>
+            <tr><td><span class="axis-tag"><i class="b-harness"></i>Harness</span></td><td>Python</td><td><code>src/harness/python/</code></td><td>The whole program</td></tr>
+            <tr><td><span class="axis-tag"><i class="b-tools"></i>Tools</span></td><td>All three sets</td><td><code>src/harness/python/tools/</code></td><td>Behavior</td></tr>
+            <tr><td><span class="axis-tag"><i class="b-env"></i>Environment</span></td><td>Laptop</td><td><code>src/harness/python/env/local.py</code></td><td>Behavior</td></tr>
+            <tr><td><span class="axis-tag"><i class="b-code"></i>Codebase</span></td><td>Python</td><td><code>tasks/python/</code></td><td>Data</td></tr>
+            <tr><td><span class="axis-tag"><i class="b-model"></i>Model</span></td><td>Qwen3 8B, through Ollama</td><td><code>config/baseline.yaml</code>, used in <code>model.py</code></td><td>Value</td></tr>
+            <tr><td><span class="axis-tag"><i class="b-think"></i>Thinking</span></td><td>On and off</td><td><code>config/baseline.yaml</code>, sent as <code>think</code> in <code>model.py</code></td><td>Value</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <ol class="steps">
+        <li>Install Ollama and pull <code>qwen3:8b</code>. Send one test request that uses a tool.</li>
+        <li>Check the context length. <code>ollama show qwen3:8b</code> gives the model maximum. <code>ollama ps</code> gives the window that Ollama uses. If the window is small, set it. Record the default temperature.</li>
+        <li><code>model.py</code>: send the messages to Ollama with the <code>think</code> value from the config, and return the reply.</li>
+        <li><code>loop.py</code>: a chat loop with no tools.</li>
+        <li><code>env/local.py</code>: read, write, and list files, and run commands, inside one folder only.</li>
+        <li><code>tools/</code>: <code>files.py</code> and <code>bash.py</code>, and the three sets built from them. Each tool calls <code>env</code>, never the machine directly.</li>
+        <li><code>build.py</code> and <code>main.py</code>: read <code>baseline.yaml</code>, build the agent, and start the chat.</li>
+        <li><code>tasks/python/task-01-cart-total/</code>: the starting code, the prompt, the hidden tests, and the reference solution.</li>
+      </ol>
+      <p class="done"><b>Done when:</b> each of the 6 configurations runs task 01 in chat mode, in a temporary copy of the repo. The hidden tests pass in at least one configuration.</p>
+    </div>
+
+    <div class="view">
+      <div class="view-head">
+        <h2>Model settings</h2>
+        <p>Decided. Every run records the value that it used.</p>
+      </div>
+      <div class="twrap">
+        <table class="et">
+          <thead><tr><th>Setting</th><th>Decision</th></tr></thead>
+          <tbody>
+            <tr><td>Tool set</td><td>Build all three: 3 file tools, 1 bash tool, and file tools + bash.</td></tr>
+            <tr><td>Thinking mode</td><td>Build both. Thinking is an axis with two values.</td></tr>
+            <tr><td>Context length</td><td>Check first. Set it only if the Ollama window is too small.</td></tr>
+            <tr><td>Temperature</td><td>Use the model default.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+</div>
+
+<script>
+(function () {
+  var DIMS = [
+    { key: "harness", label: "harness", values: [
+      { id: "py", name: "Python" },
+      { id: "ts", name: "TypeScript" },
+      { id: "go", name: "Go" } ] },
+    { key: "tools", label: "tools", values: [
+      { id: "files", name: "3 file tools", note: "read_file, list_files, edit_file" },
+      { id: "bash", name: "1 bash tool" },
+      { id: "files-bash", name: "file tools + bash" } ] },
+    { key: "env", label: "env", values: [
+      { id: "local", name: "Laptop", note: "one folder" },
+      { id: "docker", name: "Container", note: "Docker" },
+      { id: "vm", name: "VM" } ] },
+    { key: "code", label: "codebase", values: [
+      { id: "python", name: "Python" },
+      { id: "typescript", name: "TypeScript" },
+      { id: "rust", name: "Rust" } ] },
+    { key: "model", label: "model", values: [
+      { id: "qwen3-8b", name: "Qwen3 8B", note: "local, Ollama" } ] },
+    { key: "think", label: "thinking", values: [
+      { id: "no-think", name: "Off", note: "think: false" },
+      { id: "think", name: "On", note: "think: true" } ] }
+  ];
+  var TOTAL = DIMS.reduce(function (n, d) { return n * d.values.length; }, 1);
+  function colorVar(d) { return "var(--d-" + d.key + ")"; }
+  function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
+
+  // ids: array of value ids, one per axis, in DIMS order
+  function configId(ids) { return ids.join("."); }
+  function configPath(ids) { return "runs/" + ids.join("/") + "/"; }
+
+  /* ---------- Axes ---------- */
+  var axesEl = document.getElementById("axes");
+  var pick = DIMS.map(function (d) { return d.values[0].id; });
+
+  DIMS.forEach(function (d, i) {
+    var fs = document.createElement("fieldset");
+    fs.className = "axis-col";
+    fs.style.setProperty("--c", colorVar(d));
+    var html = '<legend><span class="axis-name"><span>' + d.label + '</span><span>' + d.values.length + '</span></span></legend>';
+    d.values.forEach(function (v, j) {
+      var id = "ax-" + d.key + "-" + v.id;
+      html += '<label class="opt" for="' + id + '">' +
+        '<input type="radio" name="ax-' + d.key + '" id="' + id + '" value="' + v.id + '"' + (j === 0 ? " checked" : "") + '>' +
+        '<span>' + esc(v.name) + (v.note ? '<small>' + esc(v.note) + '</small>' : '') + '</span></label>';
+    });
+    fs.innerHTML = html;
+    fs.addEventListener("change", function (e) { pick[i] = e.target.value; renderConfig(); });
+    axesEl.appendChild(fs);
+  });
+
+  function renderConfig() {
+    document.getElementById("cfg-id").textContent = configId(pick);
+    document.getElementById("cfg-path").textContent = configPath(pick);
+  }
+  renderConfig();
+
+  /* ---------- Tabs ---------- */
+  var tabs = document.querySelectorAll(".tab");
+  function show(name) {
+    tabs.forEach(function (t) {
+      var on = t.id === "tab-" + name;
+      t.setAttribute("aria-selected", on ? "true" : "false");
+      document.getElementById(t.getAttribute("aria-controls")).hidden = !on;
+    });
+    try { localStorage.setItem("h1-tab", name); } catch (e) {}
+  }
+  tabs.forEach(function (t) {
+    t.addEventListener("click", function () { show(t.id.replace("tab-", "")); });
+  });
+  var start = (location.hash || "").replace("#", "");
+  if (["diagram", "configs", "evals", "plan"].indexOf(start) < 0) {
+    try { start = localStorage.getItem("h1-tab") || "diagram"; } catch (e) { start = "diagram"; }
+  }
+  show(["diagram", "configs", "evals", "plan"].indexOf(start) < 0 ? "diagram" : start);
+})();
+</script>

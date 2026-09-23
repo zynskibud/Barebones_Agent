@@ -1,0 +1,7 @@
+# The axes. The eval harness computes every combination: 3 × 3 × 3 × 3 × 1 × 2 = 162 configurations.
+harness: [py, ts, go]
+tools: [files, bash, files-bash]
+env: [local, docker, cloud]
+codebase: [python, typescript, rust]
+model: ["qwen3:8b"]
+think: [false, true]
