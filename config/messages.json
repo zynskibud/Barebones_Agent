@@ -3,6 +3,7 @@
     "outside_folder": "error: {path} is outside the working folder",
     "not_found": "error: {path} not found",
     "is_directory": "error: {path} is a directory",
+    "not_a_directory": "error: {path} is not a directory",
     "already_exists": "error: {path} already exists",
     "old_str_not_found": "error: old_str not found in {path}",
     "old_str_multiple": "error: old_str matches more than once in {path}",

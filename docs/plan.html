@@ -511,9 +511,11 @@ table.et { border-collapse: collapse; width: 100%; font-size: 14px; }
 │   │   │   ├── loop.py           <span class="c">the loop</span>
 │   │   │   ├── model.py          <span class="s k-model">← model seam (value)</span>
 │   │   │   ├── tools/            <span class="s k-tools">← tools seam (behavior)</span>
+│   │   │   │   ├── registry.py   <span class="c">loads tools.json, dispatches by name</span>
 │   │   │   │   ├── files.py      <span class="c">read_file, list_files, edit_file</span>
 │   │   │   │   └── bash.py
 │   │   │   └── env/              <span class="s k-env">← environment seam (behavior)</span>
+│   │   │       ├── base.py       <span class="c">the Env interface</span>
 │   │   │       ├── local.py
 │   │   │       ├── docker.py
 │   │   │       └── cloud.py
@@ -524,11 +526,12 @@ table.et { border-collapse: collapse; width: 100%; font-size: 14px; }
 │       ├── run.py                <span class="c">grid → configurations → suites</span>
 │       ├── suite.py              <span class="c">one configuration: tasks × trials</span>
 │       ├── grade.py              <span class="c">runs the hidden tests</span>
-│       └── report.py             <span class="c">pass@1, pass@3, pass^3</span>
+│       ├── report.py             <span class="c">pass@1, pass@k, pass^k</span>
+│       └── tests/                <span class="c">tests for the eval harness</span>
 │
 ├── tasks/                        <span class="s k-code">← codebase seam (data)</span>
 │   ├── python/
-│   │   └── task-01-cart-total/
+│   │   └── task-NN-&lt;slug&gt;/       <span class="c">10 tasks, task-01-cart-total to task-10-slug-rename</span>
 │   │       ├── task.yaml         <span class="c">prompt, test command, limits</span>
 │   │       ├── repo/             <span class="c">the starting code</span>
 │   │       ├── solution/         <span class="c">the reference solution</span>
@@ -612,6 +615,7 @@ table.et { border-collapse: collapse; width: 100%; font-size: 14px; }
         </table>
       </div>
       <p class="note">Six commits, one per wave. One push after wave 6. Twelve agent runs, never more than four at once.</p>
+      <p class="note"><b>Status:</b> waves 0 and 1 are done (2026-09-23). The baseline configuration runs end to end on the laptop. Wave 2, the pilot, is next.</p>
 
       <h3 class="sub-h">The model rule</h3>
       <ul class="notes">

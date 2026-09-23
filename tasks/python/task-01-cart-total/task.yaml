@@ -1,7 +1,7 @@
 name: cart-total
 type: bug-fix
 prompt: "The cart total ignores the quantity. Fix it."
-test_command: "pytest hidden_tests -q"
+test_command: "python -m pytest hidden_tests -q"
 limits:
   max_turns: 40
   max_seconds: 600

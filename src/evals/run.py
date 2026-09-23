@@ -1,6 +1,269 @@
 """Run the evals: grid to configurations to suites.
 
-Read config/grid.yaml and compute every combination with itertools.product.
-Skip configurations that already have results in runs/.
---stage 1 runs the baseline only. --stage 2 changes one axis at a time from the baseline. No --stage runs all.
+Usage:
+    uv run python src/evals/run.py [--stage 1|2] [--dry-run] [--keep] [--trials N]
+                                   [--tasks a,b] [--validate-tasks]
+
+config/grid.yaml gives the axes. config/baseline.yaml gives the baseline value on every
+axis and the defaults for every other key (num_ctx, temperature, max_turns, max_seconds).
+The configurations come from itertools.product over the axes, in grid order.
+Grid order is the run order.
+
+--stage 1 runs the baseline only. --stage 2 runs the baseline and every configuration
+that differs from it on exactly one axis. No --stage runs all configurations.
+
+For each configuration, run.py writes runs/<config id>/config.yaml and runs the suite.
+The suite skips trials that already have a graded result.json, so a stopped run continues.
+
+--tasks takes task folder names or task.yaml names, separated by commas.
+--validate-tasks checks every task under tasks/<codebase>/: repo/ plus hidden_tests/ must
+fail the test_command, and repo/ with solution/ copied over it plus hidden_tests/ must pass.
 """
+
+import argparse
+import itertools
+import shutil
+import sys
+import tempfile
+from pathlib import Path
+from typing import Any
+
+import yaml
+
+import grade
+import suite
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
+CONFIG_DIR = REPO_ROOT / "config"
+TASKS_ROOT = REPO_ROOT / "tasks"
+RUNS_DIR = REPO_ROOT / "runs"
+# The axes in configuration ID order.
+ID_AXES = ("harness", "tools", "env", "codebase", "model", "think")
+
+
+def load_yaml(path: Path) -> dict[str, Any]:
+    """Read a YAML file into a dict."""
+    return yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+
+
+def model_id(tag: str) -> str:
+    """Return the Ollama tag with ':' changed to '-'."""
+    return tag.replace(":", "-")
+
+
+def think_id(think: bool) -> str:
+    """Return 'think' or 'no-think'."""
+    return "think" if think else "no-think"
+
+
+def config_id(values: dict[str, Any]) -> str:
+    """Return <harness>.<tools>.<env>.<codebase>.<model-id>.<think-id>."""
+    return ".".join([
+        values["harness"],
+        values["tools"],
+        values["env"],
+        values["codebase"],
+        model_id(values["model"]),
+        think_id(values["think"]),
+    ])
+
+
+def all_configs(grid: dict[str, list[Any]]) -> list[dict[str, Any]]:
+    """Return every combination of the axes, in grid order."""
+    if set(grid) != set(ID_AXES):
+        raise ValueError(f"grid.yaml must have exactly these axes: {', '.join(ID_AXES)}")
+    axes = list(grid)
+    return [dict(zip(axes, values)) for values in itertools.product(*grid.values())]
+
+
+def baseline_values(baseline: dict[str, Any]) -> dict[str, Any]:
+    """Return the baseline value on each axis."""
+    return {axis: baseline[axis] for axis in ID_AXES}
+
+
+def differing_axes(values: dict[str, Any], baseline: dict[str, Any]) -> int:
+    """Return the number of axes on which values differ from the baseline."""
+    return sum(values[axis] != baseline[axis] for axis in ID_AXES)
+
+
+def select_configs(
+    configs: list[dict[str, Any]], baseline: dict[str, Any], stage: int | None
+) -> list[dict[str, Any]]:
+    """Return the configurations for the stage, in grid order.
+
+    Stage 1: the baseline. Stage 2: the baseline and one-axis changes. None: all.
+    """
+    if not any(differing_axes(c, baseline) == 0 for c in configs):
+        raise ValueError("The baseline is not in the grid.")
+    if stage is None:
+        return configs
+    limit = 0 if stage == 1 else 1
+    return [c for c in configs if differing_axes(c, baseline) <= limit]
+
+
+def build_config(baseline: dict[str, Any], values: dict[str, Any]) -> dict[str, Any]:
+    """Return the baseline with the axis values replaced."""
+    config = dict(baseline)
+    config.update(values)
+    return config
+
+
+def write_config(runs_dir: Path, cid: str, config: dict[str, Any]) -> Path:
+    """Write runs/<config id>/config.yaml and return its path."""
+    folder = runs_dir / cid
+    folder.mkdir(parents=True, exist_ok=True)
+    path = folder / "config.yaml"
+    path.write_text(yaml.safe_dump(config, sort_keys=False), encoding="utf-8")
+    return path
+
+
+def known_task_names(tasks_root: Path) -> set[str]:
+    """Return every task folder name and task.yaml name under tasks/."""
+    names: set[str] = set()
+    for codebase_dir in sorted(tasks_root.iterdir()) if tasks_root.is_dir() else []:
+        for task_dir in suite.list_task_dirs(codebase_dir):
+            names.add(task_dir.name)
+            try:
+                names.add(str(suite.load_task(task_dir)["name"]))
+            except (ValueError, yaml.YAMLError):
+                pass
+    return names
+
+
+def tests_pass(task_dir: Path, test_command: str, with_solution: bool) -> tuple[bool, str]:
+    """Run the hidden tests on repo/ (or on repo/ with solution/ over it) in a temp folder."""
+    workdir = Path(tempfile.mkdtemp(prefix="barebones-validate-")).resolve()
+    try:
+        grade.copy_tree(task_dir / "repo", workdir)
+        if with_solution:
+            grade.copy_tree(task_dir / "solution", workdir)
+        grade.install_hidden_tests(task_dir, workdir)
+        return grade.run_tests(workdir, test_command)
+    finally:
+        shutil.rmtree(workdir, ignore_errors=True)
+
+
+def last_line(text: str) -> str:
+    """Return the last line of text that is not empty."""
+    lines = [line.strip() for line in text.splitlines() if line.strip()]
+    return lines[-1] if lines else ""
+
+
+def validate_task(task_dir: Path) -> dict[str, Any]:
+    """Check one task. repo/ must fail the hidden tests. solution/ must pass them."""
+    row = {"task": f"{task_dir.parent.name}/{task_dir.name}", "repo": "-", "solution": "-", "ok": False, "note": ""}
+    try:
+        task = suite.load_task(task_dir)
+    except (ValueError, yaml.YAMLError) as error:
+        row["note"] = str(error)
+        return row
+    for part in ("repo", "solution", "hidden_tests"):
+        if not (task_dir / part).is_dir():
+            row["note"] = f"no {part}/ folder"
+            return row
+    repo_passed, _ = tests_pass(task_dir, task["test_command"], with_solution=False)
+    solution_passed, solution_output = tests_pass(task_dir, task["test_command"], with_solution=True)
+    row["repo"] = "pass" if repo_passed else "fail"
+    row["solution"] = "pass" if solution_passed else "fail"
+    row["ok"] = not repo_passed and solution_passed
+    if repo_passed:
+        row["note"] = "repo/ passes the hidden tests"
+    elif not solution_passed:
+        row["note"] = "solution/ fails: " + last_line(solution_output)[:80]
+    return row
+
+
+def validate_tasks(tasks_root: Path, names: list[str] | None) -> int:
+    """Check every task in every codebase. Print a table. Return 1 if a task fails."""
+    rows = []
+    for codebase_dir in sorted(tasks_root.iterdir()) if tasks_root.is_dir() else []:
+        if not codebase_dir.is_dir() or codebase_dir.name.startswith("."):
+            continue
+        for task_dir in sorted(d for d in codebase_dir.iterdir() if d.is_dir() and not d.name.startswith(".")):
+            if names and task_dir.name not in names:
+                try:
+                    if suite.load_task(task_dir)["name"] not in names:
+                        continue
+                except (ValueError, yaml.YAMLError):
+                    continue
+            rows.append(validate_task(task_dir))
+    if not rows:
+        print(f"No tasks found under {tasks_root}.")
+        return 1
+    width = max(len(r["task"]) for r in rows)
+    print(f"{'task':<{width}}  {'repo+tests':<10}  {'solution+tests':<14}  check  note")
+    for r in rows:
+        check = "OK" if r["ok"] else "BAD"
+        print(f"{r['task']:<{width}}  {r['repo']:<10}  {r['solution']:<14}  {check:<5}  {r['note']}")
+    bad = sum(not r["ok"] for r in rows)
+    print(f"{len(rows)} tasks, {bad} bad")
+    return 1 if bad else 0
+
+
+def parse_args(argv: list[str] | None) -> argparse.Namespace:
+    """Parse the command line."""
+    parser = argparse.ArgumentParser(description="Run the evals over the configuration grid.")
+    parser.add_argument("--stage", type=int, choices=[1, 2], help="1: baseline only. 2: one axis at a time.")
+    parser.add_argument("--dry-run", action="store_true", help="Print the configuration IDs and exit.")
+    parser.add_argument("--keep", action="store_true", help="Keep the temp working folders.")
+    parser.add_argument("--trials", type=int, default=3, help="Trials per task (default 3).")
+    parser.add_argument("--tasks", help="Task names, separated by commas.")
+    parser.add_argument("--validate-tasks", action="store_true", help="Check every task and exit.")
+    args = parser.parse_args(argv)
+    if args.trials < 1:
+        parser.error("--trials must be 1 or more")
+    args.task_names = [n.strip() for n in args.tasks.split(",") if n.strip()] if args.tasks else None
+    return args
+
+
+def main(argv: list[str] | None = None) -> int:
+    """Run the command line. Return the exit code."""
+    args = parse_args(argv)
+    if args.validate_tasks:
+        return validate_tasks(TASKS_ROOT, args.task_names)
+
+    grid = load_yaml(CONFIG_DIR / "grid.yaml")
+    baseline = load_yaml(CONFIG_DIR / "baseline.yaml")
+    selected = select_configs(all_configs(grid), baseline_values(baseline), args.stage)
+
+    if args.dry_run:
+        for values in selected:
+            print(config_id(values))
+        print(f"{len(selected)} configuration{'' if len(selected) == 1 else 's'}")
+        return 0
+
+    if args.task_names:
+        unknown = sorted(set(args.task_names) - known_task_names(TASKS_ROOT))
+        if unknown:
+            print(f"Unknown tasks: {', '.join(unknown)}", file=sys.stderr)
+            return 2
+
+    print(f"{len(selected)} configurations, {args.trials} trials per task. Results go to {RUNS_DIR}.")
+    try:
+        for values in selected:
+            cid = config_id(values)
+            suite.harness_command(values["harness"])
+            config = build_config(baseline, values)
+            config_path = write_config(RUNS_DIR, cid, config)
+            suite.run_suite(
+                cid,
+                config,
+                config_path,
+                runs_dir=RUNS_DIR,
+                tasks_root=TASKS_ROOT,
+                trials=args.trials,
+                keep=args.keep,
+                task_names=args.task_names,
+            )
+    except suite.HarnessNotFound as error:
+        print(error, file=sys.stderr)
+        return 1
+    except KeyboardInterrupt:
+        print("\nStopped. Run the same command again to continue.", file=sys.stderr)
+        return 130
+    print("Done. Run src/evals/report.py for the table.")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

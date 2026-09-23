@@ -1,0 +1,7 @@
+name: ticket-search-empty
+type: bug-fix
+prompt: "`find_ticket` in tickets.py crashes with IndexError when the list of ticket ids is empty. Fix it so it returns -1 for an empty list."
+test_command: "python -m pytest hidden_tests -q"
+limits:
+  max_turns: 40
+  max_seconds: 600

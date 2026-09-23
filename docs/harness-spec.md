@@ -1,4 +1,4 @@
-# Harness spec (draft 1)
+# Harness spec (draft 2)
 
 ## 1. Purpose
 
@@ -20,17 +20,27 @@ Every harness is one program. Every harness takes the same flags.
 | `--transcript <path>` | task mode | Where the harness writes `transcript.jsonl`. |
 | `--result <path>` | task mode | Where the harness writes `result.json`. |
 
+The harness uses the prompt file text with trailing whitespace removed.
+
 Exit codes:
 
 - `0`: the agent stopped on its own (`end_turn`).
 - `2`: a limit stopped the agent (`max_turns`, `max_seconds`, `malformed_tool_call`).
-- `3`: infrastructure error (`infra_error`), for example Ollama is unreachable or the harness crashed.
+- `3`: infrastructure error (`infra_error`), for example Ollama is unreachable, the env is not built, or the harness crashed.
 
 In task mode, the harness reads no stdin. It prints one line to stdout, the final status line:
 
 ```
 stop_reason=<reason> turns=<N> seconds=<S>
 ```
+
+Everything else that the harness has to say goes to stderr.
+The eval harness passes absolute paths for every flag. It waits `max_seconds` + 60 seconds, then kills the harness and its whole process group.
+If the harness crashes, it still writes the transcript `end` line and `result.json`, with `infra_error` and exit code 3.
+
+Chat mode reads one user line at a time from stdin. Each line runs the loop on the shared message history.
+The harness prints the tool calls, a short form of each tool result, and the reply, so that a person can watch the agent work.
+The line `exit` or the end of input stops it. Chat mode writes no transcript and no result.
 
 ## 3. Configuration
 
@@ -48,6 +58,9 @@ The config file is YAML. `config/baseline.yaml` holds these keys:
 | `temperature` | number or `null` | `null` = model default. |
 | `max_turns` | `40` | Turn limit. |
 | `max_seconds` | `600` | Wall-clock limit. |
+
+The config file is flat YAML: one `key: value` pair per line, with optional `#` comments.
+A harness needs no YAML library to read it.
 
 Configuration ID rule:
 
@@ -69,19 +82,26 @@ A turn is one model call.
 1. Set `messages = [system, user prompt]`. Set `turn = 0` and `malformed = 0`.
 2. Call the model with `messages`.
 3. If the call fails, stop with `infra_error`.
-4. Append the assistant message to `messages`.
+4. Set `turn = turn + 1`. Append the assistant message to `messages`.
 5. If the assistant message has no tool calls, stop with `end_turn`.
 6. Run every tool call in order. Append one tool result message per call, in the same order.
-7. Set `turn = turn + 1`.
-8. If `malformed >= 3`, stop with `malformed_tool_call`.
-9. If `turn >= max_turns`, stop with `max_turns`.
-10. If the wall clock since the first model call is `>= max_seconds`, stop with `max_seconds`.
-11. Go to step 2.
+7. If `malformed >= 3`, stop with `malformed_tool_call`.
+8. If `turn >= max_turns`, stop with `max_turns`.
+9. If the wall clock since the first model call is `>= max_seconds`, stop with `max_seconds`.
+10. Go to step 2.
 
 Stop reasons (exact strings): `end_turn`, `max_turns`, `max_seconds`, `malformed_tool_call`, `infra_error`.
 
-A malformed tool call is a call to a tool that does not exist, or a call with arguments that fail the schema.
-For a malformed call, the harness returns an error tool result, adds 1 to `malformed`, and continues.
+`turns` is the number of model calls that returned. A run where the first reply has no tool calls has `turns` 1.
+The wall clock starts right before the first model call and stops when the loop stops. `seconds` has one decimal.
+
+A malformed tool call is one of these:
+
+- a call to a tool that does not exist, or that is not in the tool set (`errors.unknown_tool`);
+- a call with arguments that fail the schema (`errors.invalid_arguments`): the arguments are not a JSON object, a required key is missing, a key is not in `properties` while `additionalProperties` is false, or a value has the wrong JSON type.
+
+For a malformed call, the harness returns the error string as the tool result, adds 1 to `malformed`, and continues.
+The malformed call still gets a tool result message, so that the message list stays in call and result pairs.
 If one trial has 3 malformed calls, the harness stops with `malformed_tool_call`.
 
 ## 5. Model request
@@ -98,11 +118,37 @@ The harness sends `POST /api/chat` to Ollama with this body:
 | `options.num_ctx` | Only if `num_ctx` is not null. |
 | `options.temperature` | Only if `temperature` is not null. |
 
-`result.json` records the values that the run used.
-If `num_ctx` or `temperature` is null, the harness records the value that `ollama show` reports.
+The harness sends `think` on every call, also when it is `false`. The qwen3:8b template only appends `/no_think` when the field is present.
+The HTTP timeout for one model call is `max_seconds`. A call that runs longer is an `infra_error`.
 
-The harness does not send thinking content back in later messages.
-To verify: check the Ollama docs for a case where Ollama requires the thinking content in later messages.
+The messages have these shapes:
+
+| Role | Shape |
+|---|---|
+| `system` | `{"role": "system", "content": "<system prompt>"}` |
+| `user` | `{"role": "user", "content": "<prompt>"}` |
+| `assistant` | The `message` object exactly as Ollama returned it, including `thinking` and `tool_calls`. |
+| `tool` | `{"role": "tool", "tool_call_id": "<id>", "tool_name": "<name>", "content": "<result>"}` |
+
+Thinking round trip: the harness sends the assistant message back exactly as Ollama returned it. That includes `thinking` when Ollama returned it.
+Checked 2026-09-23 on Ollama 0.34.3 with qwen3:8b: Ollama accepts the history both with and without `thinking`, and the model finishes the task both ways.
+The Ollama tool-calling docs say to return `thinking`, `content`, and `tool_calls` together with the tool results in the follow-up request.
+The qwen3:8b chat template renders `<think>` for assistant messages that come after the last user message, which is the tool-calling chain of the current task.
+The cost is prompt tokens: about 200 to 360 more per step in a three-step test.
+
+Tool call ids: Ollama 0.34.3 returns an `id` on every tool call, for example `call_8xq7xg9p`. The harness uses that id.
+If Ollama returns no id, the id is `call_<turn>_<index>`, with the turn number from section 4 and the 0-based index of the call in the message.
+The tool message carries both `tool_call_id` and `tool_name`. Ollama accepts a tool message with both, one, or none of them.
+The qwen3:8b template renders only the `content` of a tool message, so the model matches results to calls by order. That is why the harness appends the results in call order.
+
+Known template fact: the qwen3:8b template renders either the content or the tool calls of an assistant message, not both.
+If the model returns text and tool calls in one message, the model sees only the text in later turns. The harness does not change the message.
+
+`result.json` records the values that the run used:
+
+- `model_digest` is the `digest` that `GET /api/tags` lists for the model tag, as Ollama returns it.
+- If `num_ctx` is null, the harness records `context_length` from `GET /api/ps` after the run. If the model is not loaded, it records null.
+- If `temperature` is null, the harness records the `temperature` line of `parameters` from `POST /api/show`. If there is no such line, it records null.
 
 ## 6. Shared data files
 
@@ -130,21 +176,41 @@ Rules:
 
 If the model calls a tool that is not in the set, the harness treats the call as malformed.
 
+`read_file` rules:
+
+- If the path is a folder, return `errors.is_directory`.
+- If the path does not exist, return `errors.not_found`.
+
+`list_files` rules:
+
+- It lists one folder. It is not recursive.
+- If `path` is missing, the folder is `.`.
+- Names are sorted. Folder names end with `/`. Names that start with `.` are hidden.
+- The result is one name per line. An empty folder gives an empty result.
+- If the path is a file, return `errors.not_a_directory`. If it does not exist, return `errors.not_found`.
+
 `edit_file` rules:
 
-- If `old_str` is empty and the file does not exist, create the file with `new_str`. Return `ok.created`.
+- If `old_str` is empty and the file does not exist, create the file with `new_str`. Create missing parent folders. Return `ok.created`.
 - If `old_str` is empty and the file exists, return `errors.already_exists`.
 - If `old_str` matches exactly once, replace it. Return `ok.edited`.
 - If `old_str` matches zero times, return `errors.old_str_not_found`.
 - If `old_str` matches more than once, return `errors.old_str_multiple`.
+- If the path is a folder, return `errors.is_directory`. If `old_str` is not empty and the file does not exist, return `errors.not_found`.
 
 ## 8. Tool results
 
 Tool results are plain text. Every error and success string comes from `config/messages.json`.
 
 Truncation: if a tool result is longer than 10,000 characters, the harness keeps the first 10,000 characters. It then adds a new line with `truncated`, where `{n}` is the number of characters cut.
+Truncation applies to the whole result text, also to the bash exit code line.
 
-`bash` runs in the working folder with a 30-second timeout. The result is stdout, then stderr, then a final line with `exit_code`. If the command times out, the result is `errors.timeout`.
+`bash` runs `bash -c <command>` with the working folder as the current folder and a 30-second timeout.
+The harness captures stdout and stderr separately. It does not interleave them.
+The result is stdout, then stderr, then a final line with `exit_code`.
+Each of stdout and stderr that is not empty and does not end with a newline gets one newline. An empty part adds nothing.
+For example, `echo out; echo err 1>&2; exit 3` gives `out\nerr\nexit code: 3`. A command with no output gives `exit code: 0`.
+If the command times out, the harness kills the command and every process it started. The result is `errors.timeout`.
 
 ## 9. Limits
 
@@ -162,17 +228,20 @@ If a config key exists, the harness reads the value from the config.
 `transcript.jsonl` has one JSON object per line, in order. The `type` values are exact.
 
 ```json
-{"type":"config","config_id":"py.files-bash.local.python.qwen3-8b.no-think","config":{"harness":"py","tools":"files-bash","env":"local","codebase":"python","model":"qwen3:8b","think":false,"num_ctx":null,"temperature":null,"max_turns":40,"max_seconds":600}}
+{"type":"config","config_id":"py.files-bash.local.python.qwen3-8b.no-think","config":{"harness":"py","tools":"files-bash","env":"local","codebase":"python","model":"qwen3:8b","think":false,"num_ctx":32768,"temperature":null,"max_turns":40,"max_seconds":600}}
 {"type":"system","content":"You work inside one folder. ..."}
 {"type":"user","content":"Fix the bug in parse_date so that ..."}
-{"type":"assistant","content":"","tool_calls":[{"id":"call_0_0","name":"read_file","arguments":{"path":"src/dates.py"}}]}
-{"type":"tool_result","tool_call_id":"call_0_0","name":"read_file","content":"def parse_date(s):\n    ..."}
+{"type":"assistant","content":"","tool_calls":[{"id":"call_1_0","name":"read_file","arguments":{"path":"src/dates.py"}}]}
+{"type":"tool_result","tool_call_id":"call_1_0","name":"read_file","content":"def parse_date(s):\n    ..."}
 {"type":"end","stop_reason":"end_turn","turns":5,"seconds":42.7}
 ```
 
-- `config` is always the first line. `end` is always the last line.
-- `assistant` has `content`. It has `tool_calls` only if the model made tool calls. It has `thinking` only if Ollama returned thinking.
+- `config` is always the first line. `end` is always the last line. `config` holds every key of the config file as loaded.
+- `assistant` has `content`. It has `tool_calls` only if the model made tool calls. It has `thinking` only if Ollama returned a non-empty `thinking`.
+- `tool_result` has the result text after truncation, exactly as the model received it.
 - If Ollama returns no tool call id, the harness sets the id to `call_<turn>_<index>`.
+- `end` has `error` with the error text only if the stop reason is `infra_error`.
+- The harness writes each line as soon as it has it, so that a crashed run still has a readable transcript.
 
 ## 11. result.json
 
@@ -189,8 +258,8 @@ The harness writes these keys. It writes `passed` and `grader_output` as `null`.
   "prompt_tokens": 18342,
   "completion_tokens": 911,
   "model": "qwen3:8b",
-  "model_digest": "sha256:...",
-  "num_ctx": 4096,
+  "model_digest": "500a1f067a9f782620b40bee6f7b0c89e17ae61f686b92c24933e4ca4b2b8b41",
+  "num_ctx": 32768,
   "temperature": 0.6,
   "think": false,
   "exit_code": 0,
@@ -201,16 +270,24 @@ The harness writes these keys. It writes `passed` and `grader_output` as `null`.
 }
 ```
 
-`prompt_tokens` and `completion_tokens` are the sums over all model calls in the trial.
+- `prompt_tokens` and `completion_tokens` are the sums of `prompt_eval_count` and `eval_count` over all model calls in the trial.
+- `tool_calls` counts every tool call, malformed calls included.
+- `task` is the name of the folder two levels above `--result`. `trial` is the name of the folder one level above, as an integer. If that name is not a number, `trial` is null. This follows the `runs/<config id>/<task>/<trial>/` layout. The eval harness may overwrite both.
+- On a harness crash, `turns`, `seconds`, the token counts, and the call counts are 0.
+- The eval harness adds one key after grading: `flagged` (bool). See section 12.
+- If the harness wrote no `result.json` at all, the eval harness writes one with the keys above, `stop_reason: "infra_error"`, `passed: false`, the process exit code, and `null` for the values it cannot know.
+- The eval harness sets `task` to the task folder name, for example `task-01-cart-total`, and `trial` to the trial number.
 
 ## 12. Working folder rules
 
 - Every file tool path goes through `safe_path`.
 - `safe_path` resolves the path. It follows `..` and symlinks.
 - If the resolved path is outside the working folder, the tool returns `errors.outside_folder`.
+- Every env receives the host working folder path. The env is responsible for making that folder visible to itself.
 - `bash` cannot be limited by path on the laptop (`env: local`). A command can read or write any file that the user can.
 - The harness must log every bash command in the transcript.
-- The eval harness searches every transcript for `hidden_tests` and `solution`. If it finds either string, it flags the trial.
+- The eval harness searches every transcript for `hidden_tests` and `solution`. If it finds either string in a tool call or a tool result, it sets `flagged: true` in `result.json`.
+- A flag means "read this trial". It does not mean the agent cheated. The word `solution` also appears in normal code and output.
 
 ## 13. Checklist for a new harness
 
@@ -219,8 +296,10 @@ The harness writes these keys. It writes `passed` and `grader_output` as `null`.
 - [ ] The configuration ID matches section 3 for every axis value.
 - [ ] The loop and the stop reasons match section 4.
 - [ ] The request body matches section 5, with no extra fields.
+- [ ] The message shapes match section 5, including `thinking` sent back.
 - [ ] The harness loads the three data files in section 6 and copies no text from them into its code.
 - [ ] The tool order matches `sets` in `config/tools.json`.
+- [ ] The tool rules in section 7 match, including the `list_files` rules.
 - [ ] Truncation and the bash result format match section 8.
 - [ ] The transcript record types and fields match section 10.
 - [ ] `result.json` has exactly the keys in section 11.
@@ -228,8 +307,5 @@ The harness writes these keys. It writes `passed` and `grader_output` as `null`.
 
 ## 14. Open points
 
-- Ollama thinking round-trip: does Ollama need the thinking content back in later messages?
-- `list_files`: is it recursive, and does it hide dotfiles?
-- `docker` and `cloud` envs: how do they receive the working folder, and does `safe_path` run on the host or inside?
-- Tool call ids: does Ollama return them for `qwen3:8b`, and does the tool message need `tool_name`?
-- Bash output order: interleave stdout and stderr, or stdout first?
+- Timing: the harness gives each model call an HTTP timeout of `max_seconds`, and it checks the wall clock only between calls. So one run can last almost 2 × `max_seconds`, while the eval harness kills at `max_seconds` + 60. Wave 2 fixes this: the per-call timeout must be the time that remains.
+- `docker` and `cloud` envs: how do they make the host working folder visible inside, and does `safe_path` run on the host or inside? Wave 3 decides. The env stubs in each harness list what wave 3 must build.

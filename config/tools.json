@@ -24,7 +24,7 @@
       "type": "function",
       "function": {
         "name": "list_files",
-        "description": "List the files and folders in a folder of the working folder. Returns one name per line. Folder names end with /.",
+        "description": "List the names in one folder of the working folder. Not recursive. Names that start with . are hidden. Returns one name per line. Folder names end with /.",
         "parameters": {
           "type": "object",
           "properties": {

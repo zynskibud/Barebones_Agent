@@ -1,0 +1,7 @@
+name: payroll-split-function
+type: refactor
+prompt: "In payroll.py, split `pay_slip` into three functions: `gross_pay(employee)` returns the gross pay, `tax_owed(gross)` returns the tax for a gross amount, and `pay_slip(employee)` calls both and returns the same line as before. The output of `pay_slip` must not change."
+test_command: "python -m pytest hidden_tests -q"
+limits:
+  max_turns: 40
+  max_seconds: 600

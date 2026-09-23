@@ -59,17 +59,19 @@ Barebones_Agent/
 │   │   │   ├── build.py          build_agent(): the composition root
 │   │   │   ├── loop.py           the loop
 │   │   │   ├── model.py          talks to Ollama (model seam)
-│   │   │   ├── tools/            tools seam: files.py, bash.py
-│   │   │   └── env/              environment seam: local.py, docker.py, cloud.py
+│   │   │   ├── tools/            tools seam: registry.py, files.py, bash.py
+│   │   │   └── env/              environment seam: base.py, local.py, docker.py, cloud.py
 │   │   ├── typescript/           same shape, later
 │   │   └── go/                   same shape, later
 │   └── evals/                    the eval harness, Python only
 │       ├── run.py                grid → configurations → suites
 │       ├── suite.py              one configuration: tasks × trials
 │       ├── grade.py              runs the hidden tests
-│       └── report.py             pass@1, pass@3, pass^3
+│       ├── report.py             pass@1, pass@k, pass^k
+│       └── tests/                tests for the eval harness
 ├── tasks/                        codebase seam (data)
-│   ├── python/task-01-cart-total/   task.yaml, repo/, solution/, hidden_tests/
+│   ├── python/                   10 tasks, task-01-cart-total to task-10-slug-rename
+│   │   └── task-NN-<slug>/       task.yaml, repo/, solution/, hidden_tests/
 │   ├── typescript/
 │   └── rust/
 └── runs/                         results, not in git
@@ -91,8 +93,8 @@ Barebones_Agent/
 | `src/harness/go/` | The Go agent. Same shape as the Python agent. Not started. |
 | `src/evals/` | The eval harness. It starts the agent as a separate program and grades the result. |
 | `tasks/` | The codebase seam. Task data for each codebase language. |
-| `tasks/python/` | Python tasks. |
-| `tasks/python/task-01-cart-total/` | One task. It holds `task.yaml` and the three folders below. |
+| `tasks/python/` | The 10 Python tasks: 4 bug fixes, 4 features, 2 refactors. |
+| `tasks/python/task-NN-<slug>/` | One task. It holds `task.yaml` and the three folders below. |
 | `tasks/.../repo/` | The code that the agent starts with. |
 | `tasks/.../solution/` | A correct fix. The agent never sees it. |
 | `tasks/.../hidden_tests/` | The tests that grade the trial. The agent never sees them. |
@@ -100,9 +102,9 @@ Barebones_Agent/
 | `tasks/rust/` | Rust tasks. |
 | `runs/` | Eval results, one folder for each configuration. Not in git. |
 
-## How to run (planned)
+## How to run
 
-The code is not written yet. These commands are the plan. They do not work today.
+The Python harness and the eval harness run today, on the laptop. The TypeScript and Go harnesses and the Docker and cloud environments come in later waves.
 
 Python runs through uv (Python 3.12, `pytest`, `pyyaml`). Run `uv sync` once.
 
@@ -120,12 +122,26 @@ Chat with the agent in a folder:
 uv run python src/harness/python/main.py --config config/baseline.yaml --workdir <folder>
 ```
 
+Run one task without a chat (this is what the eval harness does):
+
+```
+uv run python src/harness/python/main.py --config config/baseline.yaml --workdir <folder> \
+  --mode task --prompt-file <file> --transcript <path>.jsonl --result <path>.json
+```
+
+Check every task (each must fail on its start code and pass on its solution):
+
+```
+uv run python src/evals/run.py --validate-tasks
+```
+
 Run the evals:
 
 ```
 uv run python src/evals/run.py --stage 1     # pilot: baseline only
 uv run python src/evals/run.py --stage 2     # one axis at a time: 10 configurations
 uv run python src/evals/run.py               # full grid: 162 configurations
+uv run python src/evals/report.py            # the table: pass@1, pass^k, time per solved task
 ```
 
 ## How the evals work
@@ -141,9 +157,7 @@ The evals have three stages. Stage 1 is a pilot on the baseline. Stage 2 changes
 ## Status
 
 - Part 1: the repo structure. Done.
-- Part 2: build every part in six subagent waves. The Plan tab in `docs/plan.html` lists the waves. Next.
-
-Nothing runs yet.
+- Part 2: build every part in six subagent waves. The Plan tab in `docs/plan.html` lists the waves. Waves 0 and 1 are done: the Python harness, the 10 Python tasks, and the eval harness. The baseline configuration runs end to end on the laptop. Wave 2, the pilot, is next.
 
 ## More
 

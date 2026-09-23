@@ -1,0 +1,7 @@
+name: settings-parser-spaces
+type: bug-fix
+prompt: "`parse_settings` in settings.py mishandles lines with extra or missing spaces around the equals sign, for example `port   =   8080` or `port=8080`. Fix it so every key and value comes back with no surrounding spaces."
+test_command: "python -m pytest hidden_tests -q"
+limits:
+  max_turns: 40
+  max_seconds: 600
