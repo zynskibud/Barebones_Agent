@@ -493,6 +493,29 @@ table.et { border-collapse: collapse; width: 100%; font-size: 14px; }
       <p class="note">The v2 prompt is <code>config/system_prompt_v2.txt</code>: the current prompt plus the lines <code>Before you edit a file, read it.</code> and <code>Before you say the change is done, run the tests.</code> as lines 7 and 8. Metrics: pass@1, pass^3, time per solved task, mean turns.</p>
       <p class="note"><b>Status:</b> planned; needs a <code>prompt</code> config key in the three harnesses and a <code>--set key=value</code> flag in <code>run.py</code>, then about 2.5 to 5 hours (from the wave 6 smoke: 78 s per no-think trial and 64 s per thinking trial as measured, up to 111 s and 198 s with the pilot's share of limit hits; 4 cells × 30 trials).</p>
     </div>
+
+    <div class="view">
+      <div class="view-head">
+        <h2>Public benchmarks, later</h2>
+        <p>The 30 tasks in this repo are a small private suite. The goal after Experiment 1 and stage 2 is to run the same harness on public benchmarks, hit the published numbers for small models with harness engineering alone, and then try to beat them. The model stays Qwen3 8B. Only the harness changes.</p>
+      </div>
+      <div class="twrap">
+        <table class="et">
+          <thead><tr><th>Order</th><th>Benchmark</th><th>What it is</th><th>Why it is safe</th><th>First run</th></tr></thead>
+          <tbody>
+            <tr><td>1</td><td>Terminal-Bench 2.1 (May 2026)</td><td>89 terminal tasks in containers, run through Harbor. Versions 3.0 and 4.0 are rolling sets.</td><td>Fixed and versioned. Released a year after the model's training data.</td><td>A 20-task subset. Needs one Harbor adapter that starts the harness in task mode.</td></tr>
+            <tr><td>2</td><td>SWE-bench Live (Microsoft, monthly)</td><td>Real GitHub issues rebuilt into Docker environments each month. 743 multi-language tasks as of May 2026.</td><td>Only issues filed after April 2025 are used.</td><td>30 tasks from one monthly set.</td></tr>
+            <tr><td>3</td><td>SWE-rebench (Nebius, monthly)</td><td>Fresh issues each month, with a public leaderboard that lists open-weight models.</td><td>Same rule: issues dated after the model's training data.</td><td>30 tasks. Compare the number with the other small models on the board.</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <ul class="notes">
+        <li><b>The contamination rule.</b> Qwen3 8B was released in April 2025. A benchmark task counts only if it was created after that date.</li>
+        <li><b>The expected start.</b> Fine-tuned 8B models built on Qwen3-8B reach about 40% on SWE-bench Verified with strong scaffolds and 64K to 128K context. A bare harness with a 32K window starts in the low single digits. That number is the baseline to beat, not a leaderboard entry.</li>
+        <li><b>The order of work.</b> Experiment 1 first. If the prompt or thinking mode moves the private pass rate, the public runs use that setting. Then the Harbor adapter, then Terminal-Bench 2.1, then the two issue benchmarks.</li>
+        <li><b>The record.</b> Every public run gets the same harness card as a private run: model digest, prompt version, tool set, env, limits, and the benchmark version, so the number can be reproduced.</li>
+      </ul>
+    </div>
   </section>
 
   <!-- PLAN -->
