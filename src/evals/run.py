@@ -3,7 +3,7 @@
 Usage:
     uv run python src/evals/run.py [--stage 1|2] [--config <id>[,<id>]]... [--dry-run]
                                    [--keep] [--trials N] [--tasks a,b] [--runs <folder>]
-                                   [--validate-tasks]
+                                   [--set key=value]... [--validate-tasks]
 
 config/grid.yaml gives the axes. config/baseline.yaml gives the baseline value on every
 axis and the defaults for every other key (num_ctx, temperature, max_turns, max_seconds).
@@ -20,6 +20,12 @@ For each configuration, run.py writes runs/<config id>/config.yaml and runs the 
 The suite skips trials that already have a graded result.json, so a stopped run continues.
 --runs puts the results in another folder, for example runs/smoke for a check that must
 not touch the eval results. report.py --runs reads the same folder.
+
+--set key=value adds one key to every config.yaml that the run writes, after the axis
+values. Repeat the flag for more keys. The value gets the flat config typing: null, true,
+false, a number, or else text. A key that names an axis is an error, because the axis
+values come from the grid. The configuration ID does not show --set keys, so a run with
+another value, for example --set prompt=config/system_prompt_v2.txt, needs its own --runs folder.
 
 --tasks takes task folder names or task.yaml names, separated by commas.
 --validate-tasks checks every task under tasks/<codebase>/: repo/ plus hidden_tests/ must
@@ -119,11 +125,44 @@ def unknown_ids(configs: list[dict[str, Any]], ids: list[str]) -> list[str]:
     return sorted(set(ids) - known)
 
 
-def build_config(baseline: dict[str, Any], values: dict[str, Any]) -> dict[str, Any]:
-    """Return the baseline with the axis values replaced."""
+def build_config(
+    baseline: dict[str, Any], values: dict[str, Any], overrides: dict[str, Any] | None = None
+) -> dict[str, Any]:
+    """Return the baseline with the axis values replaced, then the --set keys."""
     config = dict(baseline)
     config.update(values)
+    config.update(overrides or {})
     return config
+
+
+def parse_value(raw: str) -> Any:
+    """Type one --set value as the flat config file does: null, true, false, a number, or text."""
+    if raw in ("", "null", "~"):
+        return None
+    if raw in ("true", "True"):
+        return True
+    if raw in ("false", "False"):
+        return False
+    for number in (int, float):
+        try:
+            return number(raw)
+        except ValueError:
+            pass
+    return raw
+
+
+def parse_overrides(pairs: list[str]) -> dict[str, Any]:
+    """Turn --set key=value pairs into a dict. Raise ValueError for a bad pair or an axis key."""
+    overrides: dict[str, Any] = {}
+    for pair in pairs:
+        key, equals, raw = pair.partition("=")
+        key = key.strip()
+        if not equals or not key:
+            raise ValueError(f"--set needs key=value, not '{pair}'")
+        if key in ID_AXES:
+            raise ValueError(f"--set cannot change the axis '{key}'. The axis values come from the grid.")
+        overrides[key] = parse_value(raw.strip())
+    return overrides
 
 
 def write_config(runs_dir: Path, cid: str, config: dict[str, Any]) -> Path:
@@ -231,10 +270,20 @@ def parse_args(argv: list[str] | None) -> argparse.Namespace:
     parser.add_argument("--trials", type=int, default=3, help="Trials per task (default 3).")
     parser.add_argument("--tasks", help="Task names, separated by commas.")
     parser.add_argument("--runs", type=Path, default=None, help="The results folder (default runs/).")
+    parser.add_argument(
+        "--set", action="append", default=[], metavar="KEY=VALUE", dest="set_pairs",
+        help="Add this key to every config.yaml that the run writes. Repeat the flag for more keys. "
+        "An axis key is an error. The configuration ID does not show the key, so give each value "
+        "its own --runs folder, for example one folder per prompt version.",
+    )
     parser.add_argument("--validate-tasks", action="store_true", help="Check every task and exit.")
     args = parser.parse_args(argv)
     if args.trials < 1:
         parser.error("--trials must be 1 or more")
+    try:
+        args.overrides = parse_overrides(args.set_pairs)
+    except ValueError as error:
+        parser.error(str(error))
     args.task_names = [n.strip() for n in args.tasks.split(",") if n.strip()] if args.tasks else None
     args.config_ids = [c.strip() for raw in (args.config or []) for c in raw.split(",") if c.strip()]
     return args
@@ -265,6 +314,9 @@ def main(argv: list[str] | None = None) -> int:
         for values in selected:
             print(config_id(values))
         print(f"{len(selected)} configuration{'' if len(selected) == 1 else 's'}")
+        for key, value in args.overrides.items():
+            # The line exactly as it goes into each config.yaml.
+            print(f"set {yaml.safe_dump({key: value}).strip()}")
         return 0
 
     if args.task_names:
@@ -279,7 +331,7 @@ def main(argv: list[str] | None = None) -> int:
         for values in selected:
             cid = config_id(values)
             suite.harness_command(values["harness"])
-            config = build_config(baseline, values)
+            config = build_config(baseline, values, args.overrides)
             config_path = write_config(runs_dir, cid, config)
             suite.run_suite(
                 cid,

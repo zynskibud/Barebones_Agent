@@ -19,6 +19,8 @@ import { makeTools, type Definition, type Handler, type Messages, type Tools } f
 // This file is src/harness/typescript/build.ts, so the repo root is three folders up.
 export const REPO_ROOT = nodePath.resolve(fileURLToPath(new URL("../../../", import.meta.url)));
 const CONFIG_DIR = nodePath.join(REPO_ROOT, "config");
+// The system prompt file when the config has no prompt key, relative to the repo root.
+const DEFAULT_PROMPT = "config/system_prompt.txt";
 
 // A value in the flat config file.
 export type Value = string | number | boolean | null;
@@ -75,7 +77,9 @@ export function buildAgent(config: Config, workdir: string): Agent {
     undefined,
     config.max_seconds as number,
   );
-  const systemPrompt = rstrip(readText(nodePath.join(CONFIG_DIR, "system_prompt.txt")));
+  const promptFile = config.prompt ?? DEFAULT_PROMPT;
+  // resolve() keeps an absolute path as it is, as Python's / operator does.
+  const systemPrompt = rstrip(readText(nodePath.resolve(REPO_ROOT, String(promptFile))));
   return {
     model,
     tools,

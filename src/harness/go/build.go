@@ -18,6 +18,9 @@ import (
 	"barebones/harness/tools"
 )
 
+// defaultPrompt is the system prompt file when the config has no prompt key, relative to the repo root.
+const defaultPrompt = "config/system_prompt.txt"
+
 // envMaker builds one env from the host working folder and max_seconds.
 type envMaker func(workdir string, maxSeconds float64, root string) (env.Env, error)
 
@@ -102,7 +105,11 @@ func buildAgent(cfg *config, workdir string) (*agent, error) {
 	if err != nil {
 		return nil, err
 	}
-	systemPrompt, err := readText(filepath.Join(configDir, "system_prompt.txt"))
+	promptFile, err := promptPath(cfg, root)
+	if err != nil {
+		return nil, err
+	}
+	systemPrompt, err := readText(promptFile)
 	if err != nil {
 		return nil, err
 	}
@@ -114,6 +121,23 @@ func buildAgent(cfg *config, workdir string) (*agent, error) {
 		maxTurns:     maxTurns,
 		maxSeconds:   maxSeconds,
 	}, nil
+}
+
+// promptPath returns the system prompt file: the prompt key, or defaultPrompt when the key
+// is missing or null. A relative path is relative to the repo root.
+func promptPath(cfg *config, root string) (string, error) {
+	path := defaultPrompt
+	if found, ok := cfg.get("prompt"); ok && !found.isNull() {
+		text, err := cfg.text("prompt")
+		if err != nil {
+			return "", err
+		}
+		path = text
+	}
+	if filepath.IsAbs(path) {
+		return path, nil
+	}
+	return filepath.Join(root, path), nil
 }
 
 // loadDefinitions returns the definitions of one tool set, in set order, as stored in tools.json.

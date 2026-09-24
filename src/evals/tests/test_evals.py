@@ -187,6 +187,48 @@ def test_config_file_replaces_axis_values(tmp_path):
     assert path.parent.name == "py.files-bash.local.python.qwen3-8b.think"
 
 
+def test_set_types_values_refuses_axes_and_reaches_every_config_file(fake_run, tmp_path, monkeypatch):
+    args = run.parse_args([
+        "--set", "prompt=config/system_prompt_v2.txt", "--set", "max_turns=1", "--set", "temperature=0.6",
+        "--set", "num_ctx=null", "--set", "a=true", "--set", "b=False", "--set", "c=",
+    ])
+    assert args.overrides == {
+        "prompt": "config/system_prompt_v2.txt", "max_turns": 1, "temperature": 0.6,
+        "num_ctx": None, "a": True, "b": False, "c": None,
+    }
+    assert run.parse_args([]).overrides == {}
+    for bad in ("think=true", "harness=ts", "model=qwen3:14b", "prompt", "=x"):
+        with pytest.raises(SystemExit):
+            run.parse_args(["--set", bad])
+
+    fake_run("fix")  # writes the fake task and sets up the fake harness
+    runs_dir = tmp_path / "main-runs"
+    monkeypatch.setattr(run, "RUNS_DIR", runs_dir)
+    monkeypatch.setattr(run, "TASKS_ROOT", tmp_path / "tasks")
+    argv = ["--stage", "1", "--trials", "1", "--set", "prompt=config/system_prompt_v2.txt", "--set", "max_turns=7"]
+    assert run.main(argv) == 0
+    # The run config and the per-task config (the fake task has its own limits) both get the keys.
+    for path in (runs_dir / BASELINE_ID / "config.yaml", runs_dir / BASELINE_ID / "task-01-cart" / "config.yaml"):
+        text = path.read_text()
+        assert "prompt: config/system_prompt_v2.txt\n" in text.splitlines(keepends=True)
+        written = yaml.safe_load(text)
+        assert written["prompt"] == "config/system_prompt_v2.txt"
+        assert written["think"] is False and written["harness"] == "py"
+    assert yaml.safe_load((runs_dir / BASELINE_ID / "config.yaml").read_text())["max_turns"] == 7
+    # The task limits still win over --set in the per-task config.
+    assert yaml.safe_load((runs_dir / BASELINE_ID / "task-01-cart" / "config.yaml").read_text())["max_turns"] == 40
+
+
+def test_dry_run_prints_the_set_pairs_after_the_configurations(capsys):
+    argv = ["--dry-run", "--config", BASELINE_ID, "--set", "prompt=config/system_prompt_v2.txt", "--set", "max_turns=1"]
+    assert run.main(argv) == 0
+    assert capsys.readouterr().out.splitlines() == [
+        BASELINE_ID, "1 configuration", "set prompt: config/system_prompt_v2.txt", "set max_turns: 1",
+    ]
+    assert run.main(["--dry-run", "--config", BASELINE_ID]) == 0
+    assert capsys.readouterr().out.splitlines() == [BASELINE_ID, "1 configuration"]
+
+
 def test_unknown_harness_raises_before_any_trial():
     with pytest.raises(suite.HarnessNotFound, match="HARNESS_COMMANDS"):
         suite.harness_command("rb")

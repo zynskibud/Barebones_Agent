@@ -60,6 +60,7 @@ The config file is YAML. `config/baseline.yaml` holds these keys:
 | `temperature` | number or `null` | `null` = model default. |
 | `max_turns` | `20` | Turn limit. |
 | `max_seconds` | `300` | Wall-clock limit. |
+| `prompt` | a path relative to the repo root | Optional, not in `config/baseline.yaml`. The system prompt file. If the key is absent or null, the harness reads `config/system_prompt.txt`. A different file is an experiment, not a v1 run. |
 
 The config file is flat YAML: one `key: value` pair per line, with optional `#` comments.
 A harness needs no YAML library to read it.
@@ -337,7 +338,7 @@ The env constructor takes the host working folder and `max_seconds` from the con
 
 - Empty assistant message: in the first pilot run, 2 of 30 trials ended with a message that had no content and no tool calls, while Ollama reported 70 to 217 generated tokens. The second run had none. A replay of the same context with the tool parser off gave a well-formed tool call every time. So Ollama drops a tool call that it cannot parse. The harness treats the empty message as `end_turn`, as section 4 says. A later version decides whether an empty message needs its own rule.
 - Background jobs in `bash` differ between `local` and `docker`. A command that leaves a job running (`command &`) returns at a different time in each env, and the job can outlive the call in one env and not in the other. No task needs a background job. A later version decides whether the spec needs one rule.
-- Experiment 1: a `prompt` config key (default `config/system_prompt.txt`) is planned; it changes nothing for v1 runs. The key selects the system prompt file. `config/system_prompt_v2.txt` holds the current prompt plus two rules: read a file before you edit it, and run the tests before you say the change is done. A prompt version is a candidate seventh axis. It is not part of version 1, and no harness loads the v2 file yet.
+- Experiment 1: the `prompt` config key (section 3) selects the system prompt file. Its default is `config/system_prompt.txt`, so it changes nothing for v1 runs. `config/system_prompt_v2.txt` holds the current prompt plus two rules: read a file before you edit it, and run the tests before you say the change is done. The eval harness flag `--set prompt=config/system_prompt_v2.txt` writes the key into every config file of a run. The configuration ID does not name the prompt, so each prompt version needs its own `--runs` folder. A prompt version is a candidate seventh axis. It is not part of version 1.
 
 ## 15. Clarifications (version 1, no behavior change)
 
@@ -349,3 +350,4 @@ These items state what the three harnesses already do. They change no rule.
 - (d) The `local` and `docker` file tools and `bash` output normalize CRLF to LF, as Python text mode does. The `cloud` env does not.
 - (e) The `{detail}` text of `errors.invalid_arguments` is free text. The three harnesses currently keep it identical.
 - (f) The eval harness can build a harness before it runs it. It builds the Go harness into `bin/` when the binary is missing or older than a source file.
+- (g) The `prompt` key selects the system prompt file. If the key is absent, the harness reads `config/system_prompt.txt`. v1 runs never set it.

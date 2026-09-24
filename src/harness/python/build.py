@@ -18,6 +18,8 @@ from tools.registry import Tools
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 CONFIG_DIR = REPO_ROOT / "config"
+# The system prompt file when the config has no prompt key, relative to the repo root.
+DEFAULT_PROMPT = "config/system_prompt.txt"
 
 ENVS = {"local": LocalEnv, "docker": DockerEnv, "cloud": CloudEnv}
 
@@ -57,7 +59,10 @@ def build_agent(config: dict, workdir: str) -> Agent:
         temperature=config["temperature"],
         timeout=config["max_seconds"],
     )
-    system_prompt = (CONFIG_DIR / "system_prompt.txt").read_text(encoding="utf-8").rstrip()
+    prompt_file = config.get("prompt")
+    if prompt_file is None:
+        prompt_file = DEFAULT_PROMPT
+    system_prompt = (REPO_ROOT / prompt_file).read_text(encoding="utf-8").rstrip()
     return Agent(model, tools, env, system_prompt, config["max_turns"], config["max_seconds"])
 
 

@@ -182,6 +182,19 @@ uv run python src/evals/run.py --config py.files-bash.docker.rust.qwen3-8b.no-th
 uv run python src/evals/report.py --runs runs/smoke
 ```
 
+Experiment 1 has four cells: prompt v1 or v2, thinking off or on. `--set prompt=config/system_prompt_v2.txt` writes the `prompt` key into every config file of the run. The configuration ID does not name the prompt, so each cell goes into its own `--runs` folder:
+
+```
+caffeinate -i uv run python src/evals/run.py --runs runs/exp1/v1-nothink --config py.files-bash.local.python.qwen3-8b.no-think
+caffeinate -i uv run python src/evals/run.py --runs runs/exp1/v1-think   --config py.files-bash.local.python.qwen3-8b.think
+caffeinate -i uv run python src/evals/run.py --runs runs/exp1/v2-nothink --config py.files-bash.local.python.qwen3-8b.no-think --set prompt=config/system_prompt_v2.txt
+caffeinate -i uv run python src/evals/run.py --runs runs/exp1/v2-think   --config py.files-bash.local.python.qwen3-8b.think    --set prompt=config/system_prompt_v2.txt
+uv run python src/evals/report.py --runs runs/exp1/v1-nothink
+uv run python src/evals/report.py --runs runs/exp1/v1-think
+uv run python src/evals/report.py --runs runs/exp1/v2-nothink
+uv run python src/evals/report.py --runs runs/exp1/v2-think
+```
+
 ## How the evals work
 
 - A **suite** is the fixed tasks, grader, limits, and prompt. It has 10 tasks for each codebase language.
