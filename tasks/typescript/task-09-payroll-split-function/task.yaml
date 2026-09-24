@@ -1,0 +1,7 @@
+name: payroll-split-function
+type: refactor
+prompt: "In payroll.ts, split `paySlip` into three exported functions: `grossPay(employee)` returns the gross pay, `taxOwed(gross)` returns the tax for a gross amount, and `paySlip(employee)` calls both and returns the same line as before. The output of `paySlip` must not change."
+test_command: "node --test hidden_tests/*.test.ts"
+limits:
+  max_turns: 40
+  max_seconds: 600

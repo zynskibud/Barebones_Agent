@@ -1,0 +1,7 @@
+name: slug-rename
+type: refactor
+prompt: "Rename the function `mk_slug` in src/slugs.rs to `make_slug`. Update every use of the old name in the other files so that nothing in this folder still uses `mk_slug`."
+test_command: "mkdir -p tests && cp hidden_tests/*.rs tests/ && cargo test -q --test 'hidden_*'"
+limits:
+  max_turns: 40
+  max_seconds: 600

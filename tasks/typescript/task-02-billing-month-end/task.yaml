@@ -1,0 +1,7 @@
+name: billing-month-end
+type: bug-fix
+prompt: "`addMonths` in billing.ts rolls over into the next month when the start date is on the 29th, 30th, or 31st and the target month is shorter. Fix it so the day clamps to the last day of the target month."
+test_command: "node --test hidden_tests/*.test.ts"
+limits:
+  max_turns: 40
+  max_seconds: 600

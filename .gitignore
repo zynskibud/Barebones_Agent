@@ -13,3 +13,8 @@ __pycache__/
 
 # Secrets
 .env
+
+# Build output inside task copies
+tasks/**/target/
+tasks/**/Cargo.lock
+tasks/**/node_modules/

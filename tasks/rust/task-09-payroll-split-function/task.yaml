@@ -1,0 +1,7 @@
+name: payroll-split-function
+type: refactor
+prompt: "In src/lib.rs, split `pay_slip` into three functions: `gross_pay(employee: &Employee) -> f64` returns the gross pay, `tax_owed(gross: f64) -> f64` returns the tax for a gross amount, and `pay_slip(employee: &Employee) -> String` calls both and returns the same line as before. The output of `pay_slip` must not change."
+test_command: "mkdir -p tests && cp hidden_tests/*.rs tests/ && cargo test -q --test 'hidden_*'"
+limits:
+  max_turns: 40
+  max_seconds: 600

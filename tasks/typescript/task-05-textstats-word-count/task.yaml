@@ -1,0 +1,7 @@
+name: textstats-word-count
+type: feature
+prompt: "Add an exported function `wordCount(text)` to textstats.ts that returns the number of words in the text. Words are separated by any whitespace, and an empty string has 0 words."
+test_command: "node --test hidden_tests/*.test.ts"
+limits:
+  max_turns: 40
+  max_seconds: 600

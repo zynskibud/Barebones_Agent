@@ -1,0 +1,7 @@
+name: expense-report-largest
+type: feature
+prompt: "Add a function `largest_expense(expenses: &[Expense]) -> Option<&Expense>` to src/expenses.rs that returns the expense with the highest amount. Then make `format_report` in src/report.rs end with one more line, `Largest: <description> <amount>` with two decimals, for example `Largest: Laptop 1200.00`."
+test_command: "mkdir -p tests && cp hidden_tests/*.rs tests/ && cargo test -q --test 'hidden_*'"
+limits:
+  max_turns: 40
+  max_seconds: 600

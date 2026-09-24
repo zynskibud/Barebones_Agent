@@ -1,0 +1,7 @@
+name: cart-total
+type: bug-fix
+prompt: "The cart total ignores the quantity. Fix it."
+test_command: "mkdir -p tests && cp hidden_tests/*.rs tests/ && cargo test -q --test 'hidden_*'"
+limits:
+  max_turns: 40
+  max_seconds: 600

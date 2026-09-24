@@ -1,0 +1,7 @@
+name: slug-rename
+type: refactor
+prompt: "Rename the function `mkSlug` in slugs.ts to `makeSlug`. Update every use of the old name in the other files so that nothing in this folder still uses `mkSlug`."
+test_command: "node --test hidden_tests/*.test.ts"
+limits:
+  max_turns: 40
+  max_seconds: 600

@@ -1,0 +1,7 @@
+name: textstats-word-count
+type: feature
+prompt: "Add a function `word_count(text: &str) -> usize` to src/lib.rs that returns the number of words in the text. Words are separated by any whitespace, and an empty string has 0 words."
+test_command: "mkdir -p tests && cp hidden_tests/*.rs tests/ && cargo test -q --test 'hidden_*'"
+limits:
+  max_turns: 40
+  max_seconds: 600
