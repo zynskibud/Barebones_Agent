@@ -15,6 +15,10 @@ class ModelError(Exception):
     """Ollama is unreachable or gave a bad answer. The loop reports infra_error."""
 
 
+class ModelTimeout(ModelError):
+    """One call ran past its timeout. The loop reports max_seconds."""
+
+
 class Model:
     """One Ollama chat model: the tag, the think flag, and the options to send."""
 
@@ -34,8 +38,11 @@ class Model:
         self.url = url.rstrip("/")
         self.timeout = timeout
 
-    def chat(self, messages: list[dict], tools: list[dict]) -> dict:
-        """POST /api/chat once and return the response body."""
+    def chat(self, messages: list[dict], tools: list[dict], timeout: float | None = None) -> dict:
+        """POST /api/chat once and return the response body.
+
+        timeout is the HTTP timeout for this call. None means the model's own timeout.
+        """
         body: dict = {
             "model": self.name,
             "messages": messages,
@@ -50,7 +57,7 @@ class Model:
             options["temperature"] = self.temperature
         if options:
             body["options"] = options
-        response = post(self.url + "/api/chat", body, self.timeout)
+        response = post(self.url + "/api/chat", body, self.timeout if timeout is None else timeout)
         if "message" not in response:
             raise ModelError(f"no message in the Ollama response: {json.dumps(response)[:500]}")
         return response
@@ -100,7 +107,13 @@ def send(request: urllib.request.Request, timeout: float) -> dict:
     except urllib.error.HTTPError as error:
         detail = error.read().decode("utf-8", errors="replace")[:500]
         raise ModelError(f"HTTP {error.code} from {request.full_url}: {detail}") from None
-    except (urllib.error.URLError, OSError) as error:
+    except TimeoutError:
+        raise ModelTimeout(f"no reply from {request.full_url} in {timeout:.1f} seconds") from None
+    except urllib.error.URLError as error:
+        if isinstance(error.reason, TimeoutError):
+            raise ModelTimeout(f"no reply from {request.full_url} in {timeout:.1f} seconds") from None
+        raise ModelError(f"cannot reach {request.full_url}: {error}") from None
+    except OSError as error:
         raise ModelError(f"cannot reach {request.full_url}: {error}") from None
     try:
         parsed = json.loads(raw)

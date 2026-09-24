@@ -81,7 +81,7 @@ A turn is one model call.
 
 1. Set `messages = [system, user prompt]`. Set `turn = 0` and `malformed = 0`.
 2. Call the model with `messages`.
-3. If the call fails, stop with `infra_error`.
+3. If the call runs past its timeout (section 5), stop with `max_seconds`. If the call fails in any other way, stop with `infra_error`.
 4. Set `turn = turn + 1`. Append the assistant message to `messages`.
 5. If the assistant message has no tool calls, stop with `end_turn`.
 6. Run every tool call in order. Append one tool result message per call, in the same order.
@@ -119,7 +119,9 @@ The harness sends `POST /api/chat` to Ollama with this body:
 | `options.temperature` | Only if `temperature` is not null. |
 
 The harness sends `think` on every call, also when it is `false`. The qwen3:8b template only appends `/no_think` when the field is present.
-The HTTP timeout for one model call is `max_seconds`. A call that runs longer is an `infra_error`.
+The HTTP timeout for one model call is the time that remains: `max_seconds` minus the seconds since the first model call, with a floor of 1 second.
+A call that runs past its timeout stops the loop with `max_seconds`, not `infra_error`. That call did not return, so it does not count as a turn.
+So one run ends close to `max_seconds`, and the eval harness kill at `max_seconds` + 60 catches only a stuck harness.
 
 The messages have these shapes:
 
@@ -307,5 +309,5 @@ The harness writes these keys. It writes `passed` and `grader_output` as `null`.
 
 ## 14. Open points
 
-- Timing: the harness gives each model call an HTTP timeout of `max_seconds`, and it checks the wall clock only between calls. So one run can last almost 2 × `max_seconds`, while the eval harness kills at `max_seconds` + 60. Wave 2 fixes this: the per-call timeout must be the time that remains.
+- Empty assistant message: in the first pilot run, 2 of 30 trials ended with a message that had no content and no tool calls, while Ollama reported 70 to 217 generated tokens. The second run had none. A replay of the same context with the tool parser off gave a well-formed tool call every time. So Ollama drops a tool call that it cannot parse. The harness treats the empty message as `end_turn`, as section 4 says. A later wave decides whether an empty message needs its own rule.
 - `docker` and `cloud` envs: how do they make the host working folder visible inside, and does `safe_path` run on the host or inside? Wave 3 decides. The env stubs in each harness list what wave 3 must build.

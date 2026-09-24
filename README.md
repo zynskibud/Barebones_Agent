@@ -45,7 +45,8 @@ Barebones_Agent/
 ├── .gitignore                    runs/ is ignored
 ├── docs/
 │   ├── plan.html                 the plan page: diagram, configurations, evals, plan
-│   └── harness-spec.md           the rules that every harness must follow
+│   ├── harness-spec.md           the rules that every harness must follow
+│   └── pilot.md                  the stage 1 pilot: numbers, failure groups, fixes
 ├── config/
 │   ├── baseline.yaml             one configuration, for a chat
 │   ├── grid.yaml                 the axes, for the evals
@@ -157,7 +158,7 @@ The evals have three stages. Stage 1 is a pilot on the baseline. Stage 2 changes
 ## Status
 
 - Part 1: the repo structure. Done.
-- Part 2: build every part in six subagent waves. The Plan tab in `docs/plan.html` lists the waves. Waves 0 and 1 are done: the Python harness, the 10 Python tasks, and the eval harness. The baseline configuration runs end to end on the laptop. Wave 2, the pilot, is next.
+- Part 2: build every part in six subagent waves. The Plan tab in `docs/plan.html` lists the waves. Waves 0 to 2 are done: the Python harness, the 10 Python tasks, the eval harness, and the pilot. The pilot ran stage 1 on the baseline: pass@1 0.10 (3 of 30 trials) at 229 seconds per trial. `docs/pilot.md` has the numbers and the failure groups. Wave 3, Python across every axis, is next.
 
 ## More
 

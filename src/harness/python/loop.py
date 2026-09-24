@@ -8,10 +8,12 @@ import json
 import time
 from collections.abc import Callable
 
-from model import Model, ModelError
+from model import Model, ModelError, ModelTimeout
 from tools.registry import Tools
 
 MAX_MALFORMED = 3
+# The smallest HTTP timeout for one model call, in seconds.
+MIN_CALL_SECONDS = 1.0
 
 Record = Callable[[dict], None]
 
@@ -36,8 +38,13 @@ def run_loop(
     error = None
     started = time.monotonic()
     while True:
+        # Each call gets the time that remains, so the run ends near max_seconds.
+        remaining = max(max_seconds - (time.monotonic() - started), MIN_CALL_SECONDS)
         try:
-            response = model.chat(messages, tools.definitions)
+            response = model.chat(messages, tools.definitions, timeout=remaining)
+        except ModelTimeout:
+            stop_reason = "max_seconds"
+            break
         except ModelError as failure:
             error = str(failure)
             stop_reason = "infra_error"
