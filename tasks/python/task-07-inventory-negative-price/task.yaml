@@ -3,5 +3,5 @@ type: feature
 prompt: "In inventory.py, make `add_item` raise `ValueError` when the price is negative. A price of zero is still allowed."
 test_command: "python -m pytest hidden_tests -q"
 limits:
-  max_turns: 40
-  max_seconds: 600
+  max_turns: 20
+  max_seconds: 300

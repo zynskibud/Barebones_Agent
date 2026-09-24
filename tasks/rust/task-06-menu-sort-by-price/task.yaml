@@ -3,5 +3,5 @@ type: feature
 prompt: "Add a function `sort_by_price(menu: &[MenuItem]) -> Vec<&MenuItem>` to src/lib.rs that returns a new list with the items ordered from the lowest price to the highest. Items with the same price keep their original order, and the input list must not change."
 test_command: "mkdir -p tests && cp hidden_tests/*.rs tests/ && cargo test -q --test 'hidden_*'"
 limits:
-  max_turns: 40
-  max_seconds: 600
+  max_turns: 20
+  max_seconds: 300

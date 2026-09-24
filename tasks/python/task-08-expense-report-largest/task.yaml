@@ -3,5 +3,5 @@ type: feature
 prompt: "Add a function `largest_expense(expenses)` to expenses.py that returns the expense with the highest amount. Then make `format_report` in report.py end with one more line, `Largest: <description> <amount>` with two decimals, for example `Largest: Laptop 1200.00`."
 test_command: "python -m pytest hidden_tests -q"
 limits:
-  max_turns: 40
-  max_seconds: 600
+  max_turns: 20
+  max_seconds: 300

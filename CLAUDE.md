@@ -14,7 +14,7 @@ This is a hand-built learning project. The owner writes every part by hand.
 2. The eval harness never imports the agent. It starts the agent as a separate program. This process boundary makes the harness-language axis possible.
 3. `docs/harness-spec.md` is the contract. It fixes the CLI flags, the system prompt, the tool descriptions, the transcript format, and the limits. Every harness follows it word for word.
 4. Each seam is a folder. A new part is a new file in the correct folder. Nothing else changes.
-5. Every task has the same four parts: `task.yaml`, `repo/`, `solution/`, `hidden_tests/`. `task.yaml` holds the facts that differ between languages, for example the test command (`pytest` or `cargo test`).
+5. Every task has the same four parts: `task.yaml`, `repo/`, `solution/`, `hidden_tests/`. `task.yaml` holds the facts that differ between languages, for example the test command (`pytest`, `node --test`, or `cargo test`).
 
 ## Seams and the composition root
 
@@ -45,6 +45,8 @@ Results go to `runs/<config id>/<task>/<trial>/`. Each trial folder holds `trans
 - The eval harness copies `repo/` to a temp folder and runs the agent. Then it copies `hidden_tests/` in and grades.
 - The file tools enforce the working-folder limit with a `safe_path` check in `env/`.
 - On the laptop, `bash` cannot be limited that way. Search the transcripts for reads of `hidden_tests` or `solution`.
+- In `env: docker`, `bash` runs in a container and sees only `/work`, the working folder. The file tools run on the host.
+- In `env: cloud`, `bash` runs in an E2B sandbox that holds only a copy of the working folder. The copy comes back to the host when the harness stops.
 
 ## Rules
 

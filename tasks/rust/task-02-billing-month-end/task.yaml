@@ -3,5 +3,5 @@ type: bug-fix
 prompt: "`add_months` in src/lib.rs panics when the start date is on the 29th, 30th, or 31st and the target month is shorter. Fix it so the day clamps to the last day of the target month."
 test_command: "mkdir -p tests && cp hidden_tests/*.rs tests/ && cargo test -q --test 'hidden_*'"
 limits:
-  max_turns: 40
-  max_seconds: 600
+  max_turns: 20
+  max_seconds: 300

@@ -45,8 +45,8 @@ KILLED = 137
 class DockerEnv(LocalEnv):
     """Files on the host folder, commands in a container that mounts it."""
 
-    def __init__(self, workdir: str, image: str = IMAGE) -> None:
-        super().__init__(workdir)
+    def __init__(self, workdir: str, max_seconds: float | None = None, image: str = IMAGE) -> None:
+        super().__init__(workdir, max_seconds)
         self.image = image
         self.name = f"barebones-{uuid.uuid4().hex[:12]}"
         # The docker run client. The container lives while its stdin is open.

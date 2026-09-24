@@ -14,9 +14,18 @@ in config/messages.json that the tool returns to the model.
 
 
 class EnvError(Exception):
-    """A problem that the tool reports to the model as text."""
+    """A problem that the tool reports to the model as text.
+
+    path is the path to name in the message when it differs from the path that
+    the model sent. For example, edit_file on `a.py/x` names the file `a.py`.
+    When path is None, the tool names the path that the model sent.
+    """
 
     key = "errors.not_found"
+
+    def __init__(self, detail: str = "", path: str | None = None) -> None:
+        super().__init__(detail)
+        self.path = path
 
 
 class OutsideFolder(EnvError):
@@ -50,10 +59,16 @@ class Timeout(EnvError):
 
 
 class Env:
-    """The interface. Each env subclasses it and fills in every method."""
+    """The interface. Each env subclasses it and fills in every method.
 
-    def __init__(self, workdir: str) -> None:
+    max_seconds is the run's wall-clock limit from the config. An env that
+    holds a remote resource (the cloud sandbox) sizes its own timeout from it.
+    The other envs ignore it.
+    """
+
+    def __init__(self, workdir: str, max_seconds: float | None = None) -> None:
         self.workdir = workdir
+        self.max_seconds = max_seconds
 
     def start(self) -> None:
         """Set up the env. A no-op for envs that need no setup."""

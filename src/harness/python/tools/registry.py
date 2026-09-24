@@ -23,8 +23,12 @@ def text(messages: dict, key: str, **values: object) -> str:
 
 
 def env_error(messages: dict, error: EnvError, path: str = "") -> str:
-    """Turn an EnvError into the message string that its key names."""
-    return text(messages, error.key, path=path)
+    """Turn an EnvError into the message string that its key names.
+
+    The message names the path that the model sent, unless the env set error.path.
+    """
+    named = error.path if error.path is not None else path
+    return text(messages, error.key, path=named)
 
 
 def check_arguments(definition: dict, arguments: object) -> str | None:

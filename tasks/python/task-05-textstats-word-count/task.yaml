@@ -3,5 +3,5 @@ type: feature
 prompt: "Add a function `word_count(text)` to textstats.py that returns the number of words in the text. Words are separated by any whitespace, and an empty string has 0 words."
 test_command: "python -m pytest hidden_tests -q"
 limits:
-  max_turns: 40
-  max_seconds: 600
+  max_turns: 20
+  max_seconds: 300

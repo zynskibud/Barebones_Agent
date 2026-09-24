@@ -1,8 +1,9 @@
 """Run the evals: grid to configurations to suites.
 
 Usage:
-    uv run python src/evals/run.py [--stage 1|2] [--dry-run] [--keep] [--trials N]
-                                   [--tasks a,b] [--validate-tasks]
+    uv run python src/evals/run.py [--stage 1|2] [--config <id>[,<id>]]... [--dry-run]
+                                   [--keep] [--trials N] [--tasks a,b] [--runs <folder>]
+                                   [--validate-tasks]
 
 config/grid.yaml gives the axes. config/baseline.yaml gives the baseline value on every
 axis and the defaults for every other key (num_ctx, temperature, max_turns, max_seconds).
@@ -11,9 +12,14 @@ Grid order is the run order.
 
 --stage 1 runs the baseline only. --stage 2 runs the baseline and every configuration
 that differs from it on exactly one axis. No --stage runs all configurations.
+--config selects exact configuration IDs from the grid. Repeat the flag or separate the
+IDs with commas. With --stage, only the IDs in that stage run. An ID that is not in the
+grid is an error.
 
 For each configuration, run.py writes runs/<config id>/config.yaml and runs the suite.
 The suite skips trials that already have a graded result.json, so a stopped run continues.
+--runs puts the results in another folder, for example runs/smoke for a check that must
+not touch the eval results. report.py --runs reads the same folder.
 
 --tasks takes task folder names or task.yaml names, separated by commas.
 --validate-tasks checks every task under tasks/<codebase>/: repo/ plus hidden_tests/ must
@@ -99,6 +105,18 @@ def select_configs(
         return configs
     limit = 0 if stage == 1 else 1
     return [c for c in configs if differing_axes(c, baseline) <= limit]
+
+
+def pick_configs(configs: list[dict[str, Any]], ids: list[str]) -> list[dict[str, Any]]:
+    """Return the configurations whose ID is in ids, in grid order."""
+    wanted = set(ids)
+    return [c for c in configs if config_id(c) in wanted]
+
+
+def unknown_ids(configs: list[dict[str, Any]], ids: list[str]) -> list[str]:
+    """Return the IDs that name no configuration in configs, sorted."""
+    known = {config_id(c) for c in configs}
+    return sorted(set(ids) - known)
 
 
 def build_config(baseline: dict[str, Any], values: dict[str, Any]) -> dict[str, Any]:
@@ -204,15 +222,21 @@ def parse_args(argv: list[str] | None) -> argparse.Namespace:
     """Parse the command line."""
     parser = argparse.ArgumentParser(description="Run the evals over the configuration grid.")
     parser.add_argument("--stage", type=int, choices=[1, 2], help="1: baseline only. 2: one axis at a time.")
+    parser.add_argument(
+        "--config", action="append", metavar="ID",
+        help="Run this configuration ID. Repeat the flag or separate IDs with commas.",
+    )
     parser.add_argument("--dry-run", action="store_true", help="Print the configuration IDs and exit.")
     parser.add_argument("--keep", action="store_true", help="Keep the temp working folders.")
     parser.add_argument("--trials", type=int, default=3, help="Trials per task (default 3).")
     parser.add_argument("--tasks", help="Task names, separated by commas.")
+    parser.add_argument("--runs", type=Path, default=None, help="The results folder (default runs/).")
     parser.add_argument("--validate-tasks", action="store_true", help="Check every task and exit.")
     args = parser.parse_args(argv)
     if args.trials < 1:
         parser.error("--trials must be 1 or more")
     args.task_names = [n.strip() for n in args.tasks.split(",") if n.strip()] if args.tasks else None
+    args.config_ids = [c.strip() for raw in (args.config or []) for c in raw.split(",") if c.strip()]
     return args
 
 
@@ -224,7 +248,18 @@ def main(argv: list[str] | None = None) -> int:
 
     grid = load_yaml(CONFIG_DIR / "grid.yaml")
     baseline = load_yaml(CONFIG_DIR / "baseline.yaml")
-    selected = select_configs(all_configs(grid), baseline_values(baseline), args.stage)
+    configs = all_configs(grid)
+    selected = select_configs(configs, baseline_values(baseline), args.stage)
+    if args.config_ids:
+        unknown = unknown_ids(configs, args.config_ids)
+        if unknown:
+            print(f"Unknown configuration IDs: {', '.join(unknown)}", file=sys.stderr)
+            return 2
+        # With --stage, the IDs must be in the stage. Without it, they come from the whole grid.
+        selected = pick_configs(selected, args.config_ids)
+        if not selected:
+            print("No selected configuration is in the stage.", file=sys.stderr)
+            return 2
 
     if args.dry_run:
         for values in selected:
@@ -238,18 +273,19 @@ def main(argv: list[str] | None = None) -> int:
             print(f"Unknown tasks: {', '.join(unknown)}", file=sys.stderr)
             return 2
 
-    print(f"{len(selected)} configurations, {args.trials} trials per task. Results go to {RUNS_DIR}.")
+    runs_dir = args.runs if args.runs is not None else RUNS_DIR
+    print(f"{len(selected)} configurations, {args.trials} trials per task. Results go to {runs_dir}.")
     try:
         for values in selected:
             cid = config_id(values)
             suite.harness_command(values["harness"])
             config = build_config(baseline, values)
-            config_path = write_config(RUNS_DIR, cid, config)
+            config_path = write_config(runs_dir, cid, config)
             suite.run_suite(
                 cid,
                 config,
                 config_path,
-                runs_dir=RUNS_DIR,
+                runs_dir=runs_dir,
                 tasks_root=TASKS_ROOT,
                 trials=args.trials,
                 keep=args.keep,

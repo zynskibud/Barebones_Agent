@@ -164,6 +164,19 @@ def test_no_stage_is_all_configurations():
     assert run.select_configs(configs, run.baseline_values(baseline), None) == configs
 
 
+def test_config_flag_picks_ids_in_grid_order(capsys):
+    grid, _ = load_grid_and_baseline()
+    configs = run.all_configs(grid)
+    docker_rust = "py.files-bash.docker.rust.qwen3-8b.no-think"
+    picked = run.pick_configs(configs, [docker_rust, BASELINE_ID])
+    assert [run.config_id(c) for c in picked] == [BASELINE_ID, docker_rust]
+    assert run.unknown_ids(configs, [BASELINE_ID, "nope"]) == ["nope"]
+    assert run.main(["--dry-run", "--config", f"{docker_rust},{BASELINE_ID}", "--config", BASELINE_ID]) == 0
+    assert capsys.readouterr().out.splitlines() == [BASELINE_ID, docker_rust, "2 configurations"]
+    assert run.main(["--dry-run", "--stage", "1", "--config", docker_rust]) == 2
+    assert run.main(["--dry-run", "--config", "nope"]) == 2
+
+
 def test_config_file_replaces_axis_values(tmp_path):
     _, baseline = load_grid_and_baseline()
     values = dict(run.baseline_values(baseline), think=True)

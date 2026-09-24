@@ -3,5 +3,5 @@ type: feature
 prompt: "Add an exported function `sortByPrice(menu)` to menu.ts that returns a new array with the items ordered from the lowest price to the highest. Items with the same price keep their original order, and the input array must not change."
 test_command: "node --test hidden_tests/*.test.ts"
 limits:
-  max_turns: 40
-  max_seconds: 600
+  max_turns: 20
+  max_seconds: 300

@@ -3,5 +3,5 @@ type: feature
 prompt: "Add an exported function `largestExpense(expenses)` to expenses.ts that returns the expense with the highest amount. Then make `formatReport` in report.ts end with one more line, `Largest: <description> <amount>` with two decimals, for example `Largest: Laptop 1200.00`."
 test_command: "node --test hidden_tests/*.test.ts"
 limits:
-  max_turns: 40
-  max_seconds: 600
+  max_turns: 20
+  max_seconds: 300

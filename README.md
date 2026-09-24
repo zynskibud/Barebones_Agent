@@ -53,6 +53,12 @@ Barebones_Agent/
 │   ├── system_prompt.txt         the system prompt, shared by every harness
 │   ├── tools.json                the tool definitions and the tool sets
 │   └── messages.json             the error and result strings
+├── docker/
+│   ├── Dockerfile                the image for env: docker, with the three toolchains
+│   └── README.md                 how to build it, and what it holds
+├── cloud/
+│   ├── build_template.py         builds the E2B template for env: cloud
+│   └── README.md                 how to build it, and what it holds
 ├── src/
 │   ├── harness/                  the agent: one folder per language
 │   │   ├── python/
@@ -73,8 +79,8 @@ Barebones_Agent/
 ├── tasks/                        codebase seam (data)
 │   ├── python/                   10 tasks, task-01-cart-total to task-10-slug-rename
 │   │   └── task-NN-<slug>/       task.yaml, repo/, solution/, hidden_tests/
-│   ├── typescript/
-│   └── rust/
+│   ├── typescript/               the same 10 tasks in TypeScript (node --test)
+│   └── rust/                     the same 10 tasks in Rust (cargo test)
 └── runs/                         results, not in git
 ```
 
@@ -83,7 +89,9 @@ Barebones_Agent/
 | Folder | Purpose |
 |---|---|
 | `Barebones_Agent/` | The repo root. |
-| `docs/` | The plan page and the harness contract. |
+| `docs/` | The plan page, the harness contract, and the pilot report. |
+| `docker/` | The Dockerfile for the `docker` env image `barebones-task`: Python 3.12 with pytest, Node 24, Rust 1.98. |
+| `cloud/` | The build script for the E2B template `barebones-agent` for the `cloud` env. The same toolchains. |
 | `config/` | The configuration choices, and the shared text that every harness loads: the system prompt, the tool definitions, and the error strings. The code reads them, and the code does not hold them. |
 | `src/` | Code only. No tasks, config, or results. |
 | `src/harness/` | The agent. One folder for each harness language. |
@@ -99,20 +107,28 @@ Barebones_Agent/
 | `tasks/.../repo/` | The code that the agent starts with. |
 | `tasks/.../solution/` | A correct fix. The agent never sees it. |
 | `tasks/.../hidden_tests/` | The tests that grade the trial. The agent never sees them. |
-| `tasks/typescript/` | TypeScript tasks. |
-| `tasks/rust/` | Rust tasks. |
+| `tasks/typescript/` | The same 10 tasks in TypeScript. Node 24 runs the `.ts` tests with `node --test`. |
+| `tasks/rust/` | The same 10 tasks in Rust. Each task is a cargo package. The tests run with `cargo test`. |
 | `runs/` | Eval results, one folder for each configuration. Not in git. |
 
 ## How to run
 
-The Python harness and the eval harness run today, on the laptop. The TypeScript and Go harnesses and the Docker and cloud environments come in later waves.
+The Python harness and the eval harness run on the three envs and the three codebases. The TypeScript and Go harnesses come in wave 5.
 
-Python runs through uv (Python 3.12, `pytest`, `pyyaml`). Run `uv sync` once.
+### Prerequisites
 
-Get the model:
+- Ollama with the model: `ollama pull qwen3:8b`.
+- uv. It gives Python 3.12, `pytest`, `pyyaml`, and `e2b`. Run `uv sync` once.
+- For `env: docker`: Docker Desktop, and the image. Build it once: `docker build -t barebones-task docker/`.
+- For `env: cloud`: an E2B account, the key in `.env` at the repo root as `E2B_API_KEY=...`, and the template. Build it once: `uv run python cloud/build_template.py`.
+- For the TypeScript tasks on the host: Node 24 through fnm. The eval harness puts `~/.local/share/fnm/node-versions/v24*/installation/bin` in front of PATH when it exists. The fnm default can stay at another version.
+- For the Rust tasks on the host: cargo in `~/.cargo/bin`. The eval harness puts it on PATH when it exists.
+
+The `docker` and `cloud` envs move only the `bash` tool. The eval harness grades on the host in every env, so the host needs the toolchain of the codebase.
+
+Check the model:
 
 ```
-ollama pull qwen3:8b
 ollama show qwen3:8b     # check the context length
 ollama ps                # check the loaded model and its context
 ```
@@ -142,14 +158,23 @@ Run the evals:
 uv run python src/evals/run.py --stage 1     # pilot: baseline only
 uv run python src/evals/run.py --stage 2     # one axis at a time: 10 configurations
 uv run python src/evals/run.py               # full grid: 162 configurations
+uv run python src/evals/run.py --dry-run     # print the configuration IDs and exit
 uv run python src/evals/report.py            # the table: pass@1, pass^k, time per solved task
+```
+
+Run exact configurations. Repeat `--config` or separate the IDs with commas. `--runs` puts the results in another folder, so a check does not touch the eval results:
+
+```
+uv run python src/evals/run.py --config py.files-bash.docker.rust.qwen3-8b.no-think \
+  --trials 1 --tasks task-01-cart-total --runs runs/smoke
+uv run python src/evals/report.py --runs runs/smoke
 ```
 
 ## How the evals work
 
 - A **suite** is the fixed tasks, grader, limits, and prompt. It has 10 tasks for each codebase language.
 - A **run** is one configuration against the suite.
-- A **trial** is one attempt at one task. Each task gets 3 trials.
+- A **trial** is one attempt at one task. Each task gets 3 trials. A trial has 20 turns and 300 seconds (`max_turns` and `max_seconds`).
 - For each trial, the eval harness copies `repo/` to a temp folder and runs the agent there. Then it copies `hidden_tests/` in and grades the result.
 - The headline metric is pass@1. The report also gives pass^3, time per solved task, tokens, turns, and time.
 
@@ -158,7 +183,14 @@ The evals have three stages. Stage 1 is a pilot on the baseline. Stage 2 changes
 ## Status
 
 - Part 1: the repo structure. Done.
-- Part 2: build every part in six subagent waves. The Plan tab in `docs/plan.html` lists the waves. Waves 0 to 2 are done: the Python harness, the 10 Python tasks, the eval harness, and the pilot. The pilot ran stage 1 on the baseline: pass@1 0.10 (3 of 30 trials) at 229 seconds per trial. `docs/pilot.md` has the numbers and the failure groups. Wave 3, Python across every axis, is next.
+- Part 2: build every part in six subagent waves. The Plan tab in `docs/plan.html` lists the waves. Waves 0 to 4 are done.
+  - Waves 0 to 2: the Python harness, the 10 Python tasks, the eval harness, and the pilot. The pilot ran stage 1 on the baseline: pass@1 0.10 (3 of 30 trials) at 229 seconds per trial. `docs/pilot.md` has the numbers and the failure groups.
+  - Wave 3: the `docker` and `cloud` envs, and the TypeScript and Rust tasks.
+  - Wave 4: integration. The Python harness ran a smoke run over the 3 envs × 3 codebases. The table is in `docs/pilot.md`, section "After the pilot". The spec is frozen as version 1.
+- Two decisions after the pilot. Each one is reversible with one line.
+  - The limits are 20 turns and 300 seconds. The pilot used 40 and 600. No passing pilot trial used more than 4 turns, and the failed loops burned 40 turns and up to 600 seconds. To go back, set `max_turns: 40` and `max_seconds: 600` in `config/baseline.yaml` and in the `limits` of every `task.yaml`.
+  - Every Python task has an empty `conftest.py` in `repo/` and `solution/`, so a bare `pytest` finds the module under test, as `npm test` and `cargo test` find theirs. To go back, delete these 20 files.
+- Wave 5, the TypeScript and Go harnesses, is next.
 
 ## More
 

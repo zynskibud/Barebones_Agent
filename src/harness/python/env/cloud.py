@@ -39,45 +39,51 @@ from pathlib import Path
 from env.base import Env, IsDirectory, NotDirectory, NotFound, OutsideFolder, Timeout
 
 REPO_ROOT = Path(__file__).resolve().parents[4]
+# The E2B template with the three task toolchains. cloud/README.md says how to build it.
+TEMPLATE = "barebones-agent"
 WORK_ROOT = "/home/user/work"
 UPLOAD_ARCHIVE = "/tmp/barebones-upload.tar.gz"
 DOWNLOAD_ARCHIVE = "/tmp/barebones-download.tar.gz"
-# The env does not get max_seconds (build.py passes only the working folder).
-# 900 s is above max_seconds (600) plus the eval harness grace (60). If the
-# harness is killed before stop(), E2B kills the sandbox at this timeout.
-SANDBOX_SECONDS = 900
-# The commands that the env runs for itself (setup, upload, download, checks) get this timeout.
+# The sandbox timeout is max_seconds plus this grace. The eval harness kills a
+# stuck harness at max_seconds + 60, so the sandbox outlives the harness. If the
+# harness dies before stop(), E2B kills the sandbox at this timeout.
+SANDBOX_GRACE_SECONDS = 120
+# The max_seconds that a direct construction without one gets.
+DEFAULT_MAX_SECONDS = 600
+# The commands that the env runs for itself (upload, download, checks) get this timeout.
 SETUP_SECONDS = 120
-# The default E2B template has Python 3.11 and no pytest. This installs the
-# pytest version from uv.lock until a custom template holds the toolchains.
-SETUP_COMMAND = "pip install --quiet --disable-pip-version-check pytest==9.1.1"
+# Build output that stays in the sandbox. The download at stop() leaves it out.
+DOWNLOAD_EXCLUDES = ("target", "__pycache__", ".pytest_cache", "node_modules")
 METADATA = {"app": "barebones-agent"}
 
 
 class CloudEnv(Env):
     """Files and commands in one E2B sandbox, inside one working folder."""
 
-    def __init__(self, workdir: str) -> None:
-        super().__init__(workdir)
+    def __init__(self, workdir: str, max_seconds: float | None = None) -> None:
+        super().__init__(workdir, max_seconds)
         self.host_root = Path(workdir).resolve()
         if not self.host_root.is_dir():
             raise FileNotFoundError(f"the working folder {workdir} does not exist")
+        limit = max_seconds if max_seconds is not None else DEFAULT_MAX_SECONDS
+        self.sandbox_seconds = int(limit + SANDBOX_GRACE_SECONDS)
         self.sandbox = None
         self.refreshed = 0.0
 
     def start(self) -> None:
-        """Create the sandbox, upload the working folder, and install pytest."""
+        """Create the sandbox from the template and upload the working folder."""
         from e2b import Sandbox
 
         if self.sandbox is not None:
             return
-        self.sandbox = Sandbox.create(timeout=SANDBOX_SECONDS, metadata=METADATA, api_key=api_key())
+        self.sandbox = Sandbox.create(
+            TEMPLATE, timeout=self.sandbox_seconds, metadata=METADATA, api_key=api_key()
+        )
         self.refreshed = time.monotonic()
         try:
             self.upload()
-            self.sandbox.commands.run(SETUP_COMMAND, user="root", timeout=SETUP_SECONDS)
         except BaseException:
-            # main.py calls stop() only after start() returns, so clean up here.
+            # A failed start must not leak the sandbox.
             self.kill()
             raise
 
@@ -116,10 +122,37 @@ class CloudEnv(Env):
         return bytes(data).decode("utf-8", errors="replace")
 
     def write(self, path: str, text: str) -> None:
+        from e2b import SandboxException
+
         target = self.safe_path(path)
         self.keep_alive()
-        # The sandbox creates the parent folders.
-        self.sandbox.files.write(target, text.encode("utf-8"))
+        try:
+            # The sandbox creates the parent folders.
+            self.sandbox.files.write(target, text.encode("utf-8"))
+        except SandboxException:
+            # A parent of the path is a file, for example a.py in a.py/x.
+            prefix = self.file_prefix(path)
+            if prefix is None:
+                raise
+            raise NotDirectory(path, path=prefix) from None
+
+    def file_prefix(self, path: str) -> str | None:
+        """Return the first prefix of path that is a file, spelled as the model sent it.
+
+        For `a.py/x` that is `a.py`. Return None if no prefix is a file.
+        """
+        parts = path.split("/")
+        for count in range(1, len(parts)):
+            prefix = "/".join(parts[:count])
+            if not prefix:
+                continue
+            try:
+                target = self.safe_path(prefix)
+            except OutsideFolder:
+                continue
+            if self.kind(target) == "file":
+                return prefix
+        return None
 
     def list(self, path: str) -> list[str]:
         from e2b import FileNotFoundException, FileType, SandboxException
@@ -175,9 +208,11 @@ class CloudEnv(Env):
 
         Host files that the agent deleted in the sandbox are deleted on the host.
         The host folder changes only after the whole archive is extracted.
+        Build output (DOWNLOAD_EXCLUDES) stays in the sandbox.
         """
+        excludes = " ".join(f"--exclude={shlex.quote(name)}" for name in DOWNLOAD_EXCLUDES)
         self.sandbox.commands.run(
-            f"tar -czf {DOWNLOAD_ARCHIVE} -C {WORK_ROOT} .", user="root", timeout=SETUP_SECONDS
+            f"tar -czf {DOWNLOAD_ARCHIVE} -C {WORK_ROOT} {excludes} .", user="root", timeout=SETUP_SECONDS
         )
         data = bytes(self.sandbox.files.read(DOWNLOAD_ARCHIVE, format="bytes", user="root"))
         staging = Path(tempfile.mkdtemp(prefix="barebones-download-"))
@@ -218,15 +253,15 @@ class CloudEnv(Env):
     def keep_alive(self) -> None:
         """Push the sandbox timeout forward when half of it has passed (for long chats)."""
         now = time.monotonic()
-        if now - self.refreshed > SANDBOX_SECONDS / 2:
-            self.sandbox.set_timeout(SANDBOX_SECONDS)
+        if now - self.refreshed > self.sandbox_seconds / 2:
+            self.sandbox.set_timeout(self.sandbox_seconds)
             self.refreshed = now
 
     def kill(self) -> None:
         """Kill the sandbox and forget it.
 
         A failed kill does not fail the run: the work is already on the host,
-        and E2B kills the sandbox at SANDBOX_SECONDS.
+        and E2B kills the sandbox at its timeout.
         """
         sandbox, self.sandbox = self.sandbox, None
         if sandbox is None:

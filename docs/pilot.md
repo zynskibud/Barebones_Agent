@@ -153,3 +153,28 @@ The score is far below the bar. The reason is not task difficulty. Each task nee
 ## Raw data
 
 `runs/py.files-bash.local.python.qwen3-8b.no-think/` holds the 30 trial folders of the second run, each with `prompt.txt`, `harness.log`, `transcript.jsonl`, and `result.json`. `runs/report.json` holds the table. The folder is not in git.
+
+## After the pilot
+
+Two decisions, applied in wave 4. Each one is one line to revert.
+
+| Decision | Value | Reason | Revert |
+|---|---|---|---|
+| Limits | `max_turns: 20`, `max_seconds: 300` (pilot: 40 and 600) | No passing trial used more than 4 turns. The failed loops burned all 40 turns and up to 600 s. | Set the two keys back in `config/baseline.yaml` and in every `task.yaml`. |
+| `conftest.py` | An empty file in every Python task `repo/` and `solution/` | A bare `pytest` failed to import the module under test, while `npm test` and `cargo test` worked out of the box. | Delete the 20 files. |
+
+Wave 4 smoke run: the Python harness across the 3 envs and the 3 codebases, 2 tasks × 1 trial each. 18 of 18 trials valid, 12 passed, 0 infra errors, 0 flagged, no leftover containers or sandboxes. Every failure is model behavior.
+
+| Config (`py.files-bash.<env>.<codebase>.qwen3-8b.no-think`) | Task 01 | Task 07 |
+|---|---|---|
+| local.python | pass, end_turn, 20.6 s | fail, max_turns, 109.6 s |
+| local.typescript | pass, end_turn, 13.0 s | pass, end_turn, 13.4 s |
+| local.rust | fail, end_turn, 11.6 s | pass, end_turn, 13.1 s |
+| docker.python | pass, end_turn, 20.1 s | fail, max_turns, 130.3 s |
+| docker.typescript | fail, end_turn, 12.5 s | pass, end_turn, 15.6 s |
+| docker.rust | fail, end_turn, 12.2 s | pass, end_turn, 13.7 s |
+| cloud.python | pass, end_turn, 18.3 s | pass, end_turn, 31.4 s |
+| cloud.typescript | pass, end_turn, 13.2 s | pass, end_turn, 16.3 s |
+| cloud.rust | fail, end_turn, 13.1 s | pass, end_turn, 14.1 s |
+
+The grader used `pytest`, `node --test`, or `cargo test` in every env. The Rust task 01 failures are code that does not compile. With the new limits, a failed loop costs about 110 to 130 s instead of 250 s.

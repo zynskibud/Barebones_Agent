@@ -3,5 +3,5 @@ type: feature
 prompt: "In src/lib.rs, make `add_item` return an `Err` when the price is negative. A price of zero is still allowed."
 test_command: "mkdir -p tests && cp hidden_tests/*.rs tests/ && cargo test -q --test 'hidden_*'"
 limits:
-  max_turns: 40
-  max_seconds: 600
+  max_turns: 20
+  max_seconds: 300

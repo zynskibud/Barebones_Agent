@@ -588,8 +588,8 @@ table.et { border-collapse: collapse; width: 100%; font-size: 14px; }
           <tbody>
             <tr><td>Main session</td><td><code>brew install ollama go</code>, then <code>ollama pull qwen3:8b</code> (about 5 GB). Check <code>num_ctx</code> and the temperature. Record them in <code>baseline.yaml</code>.</td><td>Done. Model max 40960, Ollama default 4096, set to 32768. Temperature default 0.6.</td></tr>
             <tr><td>Main session</td><td>uv project: Python 3.12, <code>pytest</code>, <code>pyyaml</code></td><td>Done</td></tr>
-            <tr><td>You</td><td>Start Docker Desktop</td><td>Open</td></tr>
-            <tr><td>You</td><td>E2B account. The API key goes in <code>.env</code> as <code>E2B_API_KEY</code>. <code>.env</code> is gitignored.</td><td>Account done. The key is not in <code>.env</code> yet.</td></tr>
+            <tr><td>You</td><td>Start Docker Desktop</td><td>Done. The image <code>barebones-task</code> is built.</td></tr>
+            <tr><td>You</td><td>E2B account. The API key goes in <code>.env</code> as <code>E2B_API_KEY</code>. <code>.env</code> is gitignored.</td><td>Done. The key is in <code>.env</code>, and the template <code>barebones-agent</code> is built.</td></tr>
           </tbody>
         </table>
       </div>
@@ -615,7 +615,7 @@ table.et { border-collapse: collapse; width: 100%; font-size: 14px; }
         </table>
       </div>
       <p class="note">Six commits, one per wave. One push after wave 6. Twelve agent runs, never more than four at once.</p>
-      <p class="note"><b>Status:</b> waves 0 to 2 are done (2026-09-23). The pilot ran stage 1 on the baseline: pass@1 0.10 (3 of 30 trials), 229 seconds per trial on average. <code>docs/pilot.md</code> has the details. Wave 3, Python across every axis, is next.</p>
+      <p class="note"><b>Status:</b> waves 0 to 4 are done (2026-09-23). Pilot on the baseline: pass@1 0.10 over 30 trials. Wave 4 smoke run: 18 of 18 trials valid across the 3 envs and the 3 codebases, 12 passed, 0 infra errors. Limits are now 20 turns and 300 s. The spec is frozen at version 1. Wave 5, the TypeScript and Go ports, is next.</p>
 
       <h3 class="sub-h">The model rule</h3>
       <ul class="notes">

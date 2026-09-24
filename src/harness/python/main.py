@@ -74,8 +74,9 @@ def run_task(args: argparse.Namespace) -> int:
             {"role": "system", "content": agent.system_prompt},
             {"role": "user", "content": prompt},
         ]
-        agent.env.start()
+        # start() is inside the try, so a failed start still reaches stop().
         try:
+            agent.env.start()
             run = run_loop(agent.model, agent.tools, messages, agent.max_turns, agent.max_seconds, record)
         finally:
             agent.env.stop()
@@ -182,8 +183,8 @@ def run_chat(args: argparse.Namespace) -> int:
     agent = build_agent(config, args.workdir)
     messages = [{"role": "system", "content": agent.system_prompt}]
     print(f"{config_id(config)} in {args.workdir}. Type exit to stop.")
-    agent.env.start()
     try:
+        agent.env.start()
         while True:
             try:
                 line = input("> ")

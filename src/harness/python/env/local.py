@@ -16,8 +16,8 @@ from env.base import Env, IsDirectory, NotDirectory, NotFound, OutsideFolder, Ti
 class LocalEnv(Env):
     """Files and commands on this machine, inside one working folder."""
 
-    def __init__(self, workdir: str) -> None:
-        super().__init__(workdir)
+    def __init__(self, workdir: str, max_seconds: float | None = None) -> None:
+        super().__init__(workdir, max_seconds)
         self.root = Path(workdir).resolve()
         if not self.root.is_dir():
             raise FileNotFoundError(f"the working folder {workdir} does not exist")
@@ -29,6 +29,24 @@ class LocalEnv(Env):
             raise OutsideFolder(path)
         return target
 
+    def file_prefix(self, path: str) -> str:
+        """Return the first prefix of path that is a file, spelled as the model sent it.
+
+        For `a.py/x` that is `a.py`. Return the whole path if no prefix is a file.
+        """
+        parts = path.split("/")
+        for count in range(1, len(parts)):
+            prefix = "/".join(parts[:count])
+            if not prefix:
+                continue
+            try:
+                candidate = self.safe_path(prefix)
+            except OutsideFolder:
+                continue
+            if candidate.exists() and not candidate.is_dir():
+                return prefix
+        return path
+
     def read(self, path: str) -> str:
         target = self.safe_path(path)
         if target.is_dir():
@@ -39,8 +57,12 @@ class LocalEnv(Env):
 
     def write(self, path: str, text: str) -> None:
         target = self.safe_path(path)
-        target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_text(text, encoding="utf-8")
+        try:
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text(text, encoding="utf-8")
+        except (FileExistsError, NotADirectoryError):
+            # A parent of the path is a file, for example a.py in a.py/x.
+            raise NotDirectory(path, path=self.file_prefix(path)) from None
 
     def list(self, path: str) -> list[str]:
         target = self.safe_path(path)

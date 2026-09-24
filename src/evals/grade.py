@@ -11,6 +11,7 @@ holds the string hidden_tests or solution. The spec (section 11) does not list t
 This file also holds the small process and copy helpers that suite.py and run.py use.
 """
 
+import glob
 import json
 import os
 import shutil
@@ -24,14 +25,34 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 TEST_TIMEOUT_SECONDS = 300
 GRADER_OUTPUT_CHARS = 4000
 LEAK_STRINGS = ("hidden_tests", "solution")
-COPY_IGNORE = shutil.ignore_patterns("__pycache__", "*.pyc", ".pytest_cache", ".DS_Store")
+COPY_IGNORE = shutil.ignore_patterns(
+    "__pycache__", "*.pyc", ".pytest_cache", ".DS_Store", "target", "Cargo.lock"
+)
+# The toolchains that the TypeScript and Rust tasks need, when the shell PATH lacks them.
+# Node 24 runs .ts test files with node --test. fnm keeps each version in its own folder.
+NODE_24_BIN_PATTERN = "~/.local/share/fnm/node-versions/v24*/installation/bin"
+CARGO_BIN = "~/.cargo/bin"
+
+
+def toolchain_bins() -> list[Path]:
+    """Return the Node 24 and cargo bin folders that exist on this machine."""
+    found = sorted(glob.glob(os.path.expanduser(NODE_24_BIN_PATTERN)), reverse=True)
+    folders = [Path(found[0])] if found else []
+    cargo = Path(os.path.expanduser(CARGO_BIN))
+    if cargo.is_dir():
+        folders.append(cargo)
+    return folders
 
 
 def project_env() -> dict[str, str]:
-    """Return the environment with the project's .venv/bin first on PATH."""
+    """Return the environment with .venv/bin, Node 24, and cargo first on PATH.
+
+    The harness and the grader both run with this environment, so the agent's bash
+    and the test command see the same toolchains.
+    """
     env = dict(os.environ)
-    venv_bin = REPO_ROOT / ".venv" / "bin"
-    env["PATH"] = f"{venv_bin}{os.pathsep}{env.get('PATH', '')}"
+    front = [REPO_ROOT / ".venv" / "bin", *toolchain_bins()]
+    env["PATH"] = os.pathsep.join([*(str(p) for p in front), env.get("PATH", "")])
     return env
 
 

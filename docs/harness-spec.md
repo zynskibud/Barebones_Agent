@@ -1,4 +1,6 @@
-# Harness spec (draft 2)
+# Harness spec
+
+Version 1. Frozen 2026-09-23. A change to this file after this date needs a new version number and a rerun of the baseline.
 
 ## 1. Purpose
 
@@ -56,8 +58,8 @@ The config file is YAML. `config/baseline.yaml` holds these keys:
 | `think` | `false`, `true` | The Ollama `think` flag. |
 | `num_ctx` | integer or `null` | Context size. `null` = Ollama default. |
 | `temperature` | number or `null` | `null` = model default. |
-| `max_turns` | `40` | Turn limit. |
-| `max_seconds` | `600` | Wall-clock limit. |
+| `max_turns` | `20` | Turn limit. |
+| `max_seconds` | `300` | Wall-clock limit. |
 
 The config file is flat YAML: one `key: value` pair per line, with optional `#` comments.
 A harness needs no YAML library to read it.
@@ -199,6 +201,7 @@ If the model calls a tool that is not in the set, the harness treats the call as
 - If `old_str` matches zero times, return `errors.old_str_not_found`.
 - If `old_str` matches more than once, return `errors.old_str_multiple`.
 - If the path is a folder, return `errors.is_directory`. If `old_str` is not empty and the file does not exist, return `errors.not_found`.
+- If `old_str` is empty and a parent of the path is a file, return `errors.not_a_directory` for that file, not for the whole path. For `a.py/x`, when `a.py` is a file, `{path}` is `a.py`, spelled as the model sent it. The harness must not crash on this case.
 
 ## 8. Tool results
 
@@ -218,19 +221,21 @@ If the command times out, the harness kills the command and every process it sta
 
 | Limit | Value | Config key |
 |---|---|---|
-| Turns | 40 | `max_turns` |
-| Wall clock, from the first model call | 600 s | `max_seconds` |
+| Turns | 20 | `max_turns` |
+| Wall clock, from the first model call | 300 s | `max_seconds` |
 | bash timeout | 30 s | none |
 | Tool result length | 10,000 characters | none |
 
 If a config key exists, the harness reads the value from the config.
+
+The pilot ran with 40 turns and 600 s. Wave 4 lowered both. In the pilot no passing trial used more than 4 turns, and the failed loops used 40 turns and up to 600 s. The new limits cut the time of a run by more than half. To go back, set `max_turns: 40` and `max_seconds: 600` in `config/baseline.yaml` and in the `limits` of every `task.yaml`.
 
 ## 10. Transcript format
 
 `transcript.jsonl` has one JSON object per line, in order. The `type` values are exact.
 
 ```json
-{"type":"config","config_id":"py.files-bash.local.python.qwen3-8b.no-think","config":{"harness":"py","tools":"files-bash","env":"local","codebase":"python","model":"qwen3:8b","think":false,"num_ctx":32768,"temperature":null,"max_turns":40,"max_seconds":600}}
+{"type":"config","config_id":"py.files-bash.local.python.qwen3-8b.no-think","config":{"harness":"py","tools":"files-bash","env":"local","codebase":"python","model":"qwen3:8b","think":false,"num_ctx":32768,"temperature":null,"max_turns":20,"max_seconds":300}}
 {"type":"system","content":"You work inside one folder. ..."}
 {"type":"user","content":"Fix the bug in parse_date so that ..."}
 {"type":"assistant","content":"","tool_calls":[{"id":"call_1_0","name":"read_file","arguments":{"path":"src/dates.py"}}]}
@@ -291,6 +296,26 @@ The harness writes these keys. It writes `passed` and `grader_output` as `null`.
 - The eval harness searches every transcript for `hidden_tests` and `solution`. If it finds either string in a tool call or a tool result, it sets `flagged: true` in `result.json`.
 - A flag means "read this trial". It does not mean the agent cheated. The word `solution` also appears in normal code and output.
 
+The env constructor takes the host working folder and `max_seconds` from the config. An env that needs no time limit ignores it.
+
+### `env: docker`
+
+- The env starts one container from the image `barebones-task` (built from `docker/`). If the image does not exist, the harness stops with `infra_error` and names the build command.
+- The container mounts the host working folder at `/work`. The container and the host see the same files, so the eval harness grades the host folder.
+- The file tools run on the host with the `local` rules. `safe_path` first maps a path that starts with `/work` to the working folder, so that a path which `bash` printed works in a file tool.
+- `bash` runs `docker exec <container> timeout --signal KILL 30 bash -c <command>` in `/work`. GNU `timeout` kills the command and every process it started. The result format is the one in section 8. `bash` sees only `/work`, not the other host files.
+- Every container gets 2 CPUs and 2 GB of memory, so that runs are comparable.
+- The container dies with the harness, also when the harness is killed. Every container name starts with `barebones-`.
+
+### `env: cloud`
+
+- The env creates one E2B sandbox from the template `barebones-agent` (built from `cloud/`). The harness and the model stay on the host. Only the tools act in the sandbox.
+- At start, the env uploads the host working folder to `/home/user/work` in the sandbox. While the agent works, the sandbox copy is the source of truth. Every tool acts on it, and the host folder does not change.
+- `safe_path` is path logic: it normalizes the path against `/home/user/work` and rejects a path that leaves it. It follows no symlinks, because there is no host folder to resolve against. The sandbox is the boundary.
+- `bash` runs `bash -c <command>` in `/home/user/work` in the sandbox, with the 30-second timeout. On a timeout the env kills the command and every process in its group.
+- At stop, the env downloads `/home/user/work` and replaces the host working folder with it. A file that the agent deleted in the sandbox is deleted on the host. Build output (`target`, `__pycache__`, `.pytest_cache`, `node_modules`) stays in the sandbox. A member that would land outside the host folder, for example an unsafe symlink, is skipped, with a note on stderr.
+- The sandbox timeout is `max_seconds` + 120 seconds. If the harness dies before stop, E2B kills the sandbox at that timeout. A failed start kills the sandbox before the error reaches the loop.
+
 ## 13. Checklist for a new harness
 
 - [ ] The flags and defaults match section 2.
@@ -301,8 +326,9 @@ The harness writes these keys. It writes `passed` and `grader_output` as `null`.
 - [ ] The message shapes match section 5, including `thinking` sent back.
 - [ ] The harness loads the three data files in section 6 and copies no text from them into its code.
 - [ ] The tool order matches `sets` in `config/tools.json`.
-- [ ] The tool rules in section 7 match, including the `list_files` rules.
+- [ ] The tool rules in section 7 match, including the `list_files` rules and the `a.py/x` case.
 - [ ] Truncation and the bash result format match section 8.
+- [ ] The three envs follow section 12: the `/work` mapping and the container life in `docker`, the upload, download, and sandbox timeout in `cloud`.
 - [ ] The transcript record types and fields match section 10.
 - [ ] `result.json` has exactly the keys in section 11.
 - [ ] The baseline configuration on task 01 gives the same result as the Python harness.
@@ -310,4 +336,5 @@ The harness writes these keys. It writes `passed` and `grader_output` as `null`.
 ## 14. Open points
 
 - Empty assistant message: in the first pilot run, 2 of 30 trials ended with a message that had no content and no tool calls, while Ollama reported 70 to 217 generated tokens. The second run had none. A replay of the same context with the tool parser off gave a well-formed tool call every time. So Ollama drops a tool call that it cannot parse. The harness treats the empty message as `end_turn`, as section 4 says. A later wave decides whether an empty message needs its own rule.
-- `docker` and `cloud` envs: how do they make the host working folder visible inside, and does `safe_path` run on the host or inside? Wave 3 decides. The env stubs in each harness list what wave 3 must build.
+- Background jobs in `bash` differ between `local` and `docker`. A command that leaves a job running (`command &`) returns at a different time in each env, and the job can outlive the call in one env and not in the other. No task needs a background job. A later wave decides whether the spec needs one rule.
+- The `cloud` download includes build output unless the env excludes it. The exclude list is `target`, `__pycache__`, `.pytest_cache`, and `node_modules`. Other files that a command writes into the working folder come back to the host.

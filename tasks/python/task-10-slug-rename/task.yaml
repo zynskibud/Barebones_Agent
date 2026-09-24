@@ -3,5 +3,5 @@ type: refactor
 prompt: "Rename the function `mk_slug` in slugs.py to `make_slug`. Update every use of the old name in the other files so that nothing in this folder still uses `mk_slug`."
 test_command: "python -m pytest hidden_tests -q"
 limits:
-  max_turns: 40
-  max_seconds: 600
+  max_turns: 20
+  max_seconds: 300

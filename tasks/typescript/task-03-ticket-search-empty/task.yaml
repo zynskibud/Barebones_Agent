@@ -3,5 +3,5 @@ type: bug-fix
 prompt: "`findTicket` in tickets.ts crashes with a TypeError when the list of tickets is empty. Fix it so it returns -1 for an empty list."
 test_command: "node --test hidden_tests/*.test.ts"
 limits:
-  max_turns: 40
-  max_seconds: 600
+  max_turns: 20
+  max_seconds: 300

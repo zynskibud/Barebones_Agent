@@ -44,7 +44,8 @@ class Agent:
 def build_agent(config: dict, workdir: str) -> Agent:
     """Read the choices in config and build every part."""
     env_class = ENVS[config["env"]]
-    env = env_class(workdir)
+    # Every env gets max_seconds. An env that needs no time limit ignores it.
+    env = env_class(workdir, max_seconds=config["max_seconds"])
     messages = json.loads((CONFIG_DIR / "messages.json").read_text(encoding="utf-8"))
     tools_file = json.loads((CONFIG_DIR / "tools.json").read_text(encoding="utf-8"))
     definitions = [tools_file["tools"][name] for name in tools_file["sets"][config["tools"]]]

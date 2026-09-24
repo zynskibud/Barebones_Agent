@@ -3,5 +3,5 @@ type: bug-fix
 prompt: "`find_ticket` in src/lib.rs panics with an index out of bounds error when the list of ticket ids is empty. Fix it so it returns `None` for an empty list."
 test_command: "mkdir -p tests && cp hidden_tests/*.rs tests/ && cargo test -q --test 'hidden_*'"
 limits:
-  max_turns: 40
-  max_seconds: 600
+  max_turns: 20
+  max_seconds: 300
