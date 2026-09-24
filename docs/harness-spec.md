@@ -335,6 +335,17 @@ The env constructor takes the host working folder and `max_seconds` from the con
 
 ## 14. Open points
 
-- Empty assistant message: in the first pilot run, 2 of 30 trials ended with a message that had no content and no tool calls, while Ollama reported 70 to 217 generated tokens. The second run had none. A replay of the same context with the tool parser off gave a well-formed tool call every time. So Ollama drops a tool call that it cannot parse. The harness treats the empty message as `end_turn`, as section 4 says. A later wave decides whether an empty message needs its own rule.
-- Background jobs in `bash` differ between `local` and `docker`. A command that leaves a job running (`command &`) returns at a different time in each env, and the job can outlive the call in one env and not in the other. No task needs a background job. A later wave decides whether the spec needs one rule.
-- The `cloud` download includes build output unless the env excludes it. The exclude list is `target`, `__pycache__`, `.pytest_cache`, and `node_modules`. Other files that a command writes into the working folder come back to the host.
+- Empty assistant message: in the first pilot run, 2 of 30 trials ended with a message that had no content and no tool calls, while Ollama reported 70 to 217 generated tokens. The second run had none. A replay of the same context with the tool parser off gave a well-formed tool call every time. So Ollama drops a tool call that it cannot parse. The harness treats the empty message as `end_turn`, as section 4 says. A later version decides whether an empty message needs its own rule.
+- Background jobs in `bash` differ between `local` and `docker`. A command that leaves a job running (`command &`) returns at a different time in each env, and the job can outlive the call in one env and not in the other. No task needs a background job. A later version decides whether the spec needs one rule.
+- Experiment 1: a `prompt` config key (default `config/system_prompt.txt`) is planned; it changes nothing for v1 runs. The key selects the system prompt file. `config/system_prompt_v2.txt` holds the current prompt plus two rules: read a file before you edit it, and run the tests before you say the change is done. A prompt version is a candidate seventh axis. It is not part of version 1, and no harness loads the v2 file yet.
+
+## 15. Clarifications (version 1, no behavior change)
+
+These items state what the three harnesses already do. They change no rule.
+
+- (a) "Wall clock" in sections 4 and 9 means the process's monotonic clock. On macOS that clock excludes system sleep in Python and Go and includes it in Node, and the E2B sandbox timeout is real time, so runs need a machine that stays awake.
+- (b) JSON whitespace in requests and in transcript lines is free. The values and the key order are fixed.
+- (c) In task mode, every child process gets stdin from /dev/null: the eval harness starts each harness with stdin from /dev/null, and each env either passes that stdin on (Python; TypeScript `local`) or sets /dev/null itself (Go; TypeScript `docker`; the sandbox command in `cloud`).
+- (d) The `local` and `docker` file tools and `bash` output normalize CRLF to LF, as Python text mode does. The `cloud` env does not.
+- (e) The `{detail}` text of `errors.invalid_arguments` is free text. The three harnesses currently keep it identical.
+- (f) The eval harness can build a harness before it runs it. It builds the Go harness into `bin/` when the binary is missing or older than a source file.

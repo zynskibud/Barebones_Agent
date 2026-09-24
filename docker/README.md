@@ -31,6 +31,7 @@ The size is about 1.4 GB on disk and 350 MB compressed. The Rust toolchain uses 
 - The container mounts the host working folder at `/work`. The container and the host see the same files.
 - The file tools run on the host. `bash` runs in the container, in `/work`, and cannot see other host files.
 - Each container gets 2 CPUs and 2 GB of memory (`CPUS` and `MEMORY` in `src/harness/python/env/docker.py`).
+- The TypeScript and Go harnesses hold the same values: `CPUS` and `MEMORY` in `src/harness/typescript/env/docker.ts`, and `cpus` and `memory` in `src/harness/go/env/docker.go`.
 - The container runs as root. On macOS, Docker Desktop gives the files that it writes to the host user.
 - The container stops when the harness ends, also when the harness is killed. Each name starts with `barebones-`.
 

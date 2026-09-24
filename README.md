@@ -68,8 +68,8 @@ Barebones_Agent/
 │   │   │   ├── model.py          talks to Ollama (model seam)
 │   │   │   ├── tools/            tools seam: registry.py, files.py, bash.py
 │   │   │   └── env/              environment seam: base.py, local.py, docker.py, cloud.py
-│   │   ├── typescript/           same shape, later
-│   │   └── go/                   same shape, later
+│   │   ├── typescript/           the TypeScript agent, same shape: main.ts, build.ts, loop.ts, model.ts, tools/, env/
+│   │   └── go/                   the Go agent, same shape: main.go, build.go, loop.go, model.go, tools/, env/
 │   └── evals/                    the eval harness, Python only
 │       ├── run.py                grid → configurations → suites
 │       ├── suite.py              one configuration: tasks × trials
@@ -81,6 +81,8 @@ Barebones_Agent/
 │   │   └── task-NN-<slug>/       task.yaml, repo/, solution/, hidden_tests/
 │   ├── typescript/               the same 10 tasks in TypeScript (node --test)
 │   └── rust/                     the same 10 tasks in Rust (cargo test)
+├── go.work                       makes the Go module visible from the repo root
+├── bin/                          the built Go harness, not in git
 └── runs/                         results, not in git
 ```
 
@@ -98,8 +100,10 @@ Barebones_Agent/
 | `src/harness/python/` | The Python agent: entry point, composition root, loop, model client. |
 | `src/harness/python/tools/` | The tools seam. One file for each tool group. |
 | `src/harness/python/env/` | The environment seam. One file for each place where the tools act. |
-| `src/harness/typescript/` | The TypeScript agent. Same shape as the Python agent. Not started. |
-| `src/harness/go/` | The Go agent. Same shape as the Python agent. Not started. |
+| `src/harness/typescript/` | The TypeScript agent. Same shape as the Python agent. Node 24 runs the `.ts` files directly. The `e2b` package, for the `cloud` env, is its only dependency. |
+| `src/harness/go/` | The Go agent. Same shape as the Python agent. Standard library only, including the E2B calls for the `cloud` env. |
+| `bin/` | The built Go harness, `barebones-go`. The eval harness builds it on first use. Not in git. |
+| `go.work` | The Go workspace file. It makes the Go module under `src/harness/go/` visible from the repo root. |
 | `src/evals/` | The eval harness. It starts the agent as a separate program and grades the result. |
 | `tasks/` | The codebase seam. Task data for each codebase language. |
 | `tasks/python/` | The 10 Python tasks: 4 bug fixes, 4 features, 2 refactors. |
@@ -113,7 +117,7 @@ Barebones_Agent/
 
 ## How to run
 
-The Python harness and the eval harness run on the three envs and the three codebases. The TypeScript and Go harnesses come in wave 5.
+The three harnesses and the eval harness run on the three envs and the three codebases.
 
 ### Prerequisites
 
@@ -121,10 +125,16 @@ The Python harness and the eval harness run on the three envs and the three code
 - uv. It gives Python 3.12, `pytest`, `pyyaml`, and `e2b`. Run `uv sync` once.
 - For `env: docker`: Docker Desktop, and the image. Build it once: `docker build -t barebones-task docker/`.
 - For `env: cloud`: an E2B account, the key in `.env` at the repo root as `E2B_API_KEY=...`, and the template. Build it once: `uv run python cloud/build_template.py`.
-- For the TypeScript tasks on the host: Node 24 through fnm. The eval harness puts `~/.local/share/fnm/node-versions/v24*/installation/bin` in front of PATH when it exists. The fnm default can stay at another version.
+- For the TypeScript tasks on the host and for the `ts` harness: Node 24 through fnm. The eval harness puts `~/.local/share/fnm/node-versions/v24*/installation/bin` in front of PATH when it exists. The fnm default can stay at another version.
+- For the `ts` harness on `env: cloud`: the `e2b` package. Run `npm install --prefix src/harness/typescript` once.
+- For the `go` harness: Go 1.27. The Go binary builds itself into `bin/` on first use, and again when a source file is newer than the binary.
 - For the Rust tasks on the host: cargo in `~/.cargo/bin`. The eval harness puts it on PATH when it exists.
 
 The `docker` and `cloud` envs move only the `bash` tool. The eval harness grades on the host in every env, so the host needs the toolchain of the codebase.
+
+### Machine
+
+Run evals on power with the lid open. System sleep stretches the timers and kills the sandboxes: the Node clock counts the time in sleep, and the E2B sandbox timeout is real time.
 
 Check the model:
 
@@ -145,6 +155,8 @@ Run one task without a chat (this is what the eval harness does):
 uv run python src/harness/python/main.py --config config/baseline.yaml --workdir <folder> \
   --mode task --prompt-file <file> --transcript <path>.jsonl --result <path>.json
 ```
+
+The same flags start the other two harnesses: `node src/harness/typescript/main.ts` and `bin/barebones-go`.
 
 Check every task (each must fail on its start code and pass on its solution):
 
@@ -183,14 +195,17 @@ The evals have three stages. Stage 1 is a pilot on the baseline. Stage 2 changes
 ## Status
 
 - Part 1: the repo structure. Done.
-- Part 2: build every part in six subagent waves. The Plan tab in `docs/plan.html` lists the waves. Waves 0 to 4 are done.
+- Part 2: build every part in six subagent waves. The Plan tab in `docs/plan.html` lists the waves. Waves 0 to 6 are done.
   - Waves 0 to 2: the Python harness, the 10 Python tasks, the eval harness, and the pilot. The pilot ran stage 1 on the baseline: pass@1 0.10 (3 of 30 trials) at 229 seconds per trial. `docs/pilot.md` has the numbers and the failure groups.
   - Wave 3: the `docker` and `cloud` envs, and the TypeScript and Rust tasks.
   - Wave 4: integration. The Python harness ran a smoke run over the 3 envs × 3 codebases. The table is in `docs/pilot.md`, section "After the pilot". The spec is frozen as version 1.
+  - Wave 5: the TypeScript and Go harnesses. Both match the Python harness byte for byte on the tool JSON, the prompt, and the request bodies.
+  - Wave 6: integration. Harness check: the baseline with each of the three harnesses on tasks 01 and 07, 6 of 6 trials valid, the same first-call prompt tokens (527) for all three. Stage 2 smoke: the 10 stage 2 configurations on tasks 01 and 07, 20 of 20 trials valid, 10 passed, 0 infra errors, no leftover container or sandbox. Both tables are in `docs/pilot.md`, section "After wave 6". The spec gained a clarifications section (15), still version 1.
+  - Experiment 1 (prompt × thinking, 4 × 30 trials) is designed; see the Evals tab.
+  - Next: the stage 2 measurement, `uv run python src/evals/run.py --stage 2` (300 trials), about 6 to 10 hours on this Mac.
 - Two decisions after the pilot. Each one is reversible with one line.
   - The limits are 20 turns and 300 seconds. The pilot used 40 and 600. No passing pilot trial used more than 4 turns, and the failed loops burned 40 turns and up to 600 seconds. To go back, set `max_turns: 40` and `max_seconds: 600` in `config/baseline.yaml` and in the `limits` of every `task.yaml`.
   - Every Python task has an empty `conftest.py` in `repo/` and `solution/`, so a bare `pytest` finds the module under test, as `npm test` and `cargo test` find theirs. To go back, delete these 20 files.
-- Wave 5, the TypeScript and Go harnesses, is next.
 
 ## More
 

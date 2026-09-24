@@ -178,3 +178,84 @@ Wave 4 smoke run: the Python harness across the 3 envs and the 3 codebases, 2 ta
 | cloud.rust | fail, end_turn, 13.1 s | pass, end_turn, 14.1 s |
 
 The grader used `pytest`, `node --test`, or `cargo test` in every env. The Rust task 01 failures are code that does not compile. With the new limits, a failed loop costs about 110 to 130 s instead of 250 s.
+
+## After wave 6
+
+Date: 2026-09-24. Same machine, same Ollama, same model digest. Limits: 20 turns, 300 seconds.
+
+### Harness check
+
+The baseline configuration ran with each of the three harnesses on tasks 01 and 07, 1 trial each, into `runs/smoke/`. The model is random (temperature 0.6), so pass or fail can differ between harnesses. What must match did match:
+
+- Every trial is valid against the spec check list (the same six checks as the pilot). 0 problems in 6 trials.
+- The same record types in every transcript: `config`, `system`, `user`, `assistant`, `tool_result`, `end`.
+- The same `result.json` keys, in the same order.
+- The same `config` line, except the `harness` value. The Python harness writes JSON with a space after each comma and colon, and the other two write compact JSON. The values and the key order are equal (spec section 15, item b).
+- The same `prompt_tokens` on the first model call: 527 for each harness. Ollama reports the same count for a cached and an uncached prompt, so the count depends only on the request. Measured with `max_turns: 1` on task 01, outside `runs/`.
+
+| Harness (`<h>.files-bash.local.python.qwen3-8b.no-think`) | Task 01 | Task 07 | First-call prompt tokens |
+|---|---|---|---|
+| `py` | pass, end_turn, 4 turns, 14.1 s | fail, max_turns, 20 turns, 112.7 s | 527 |
+| `ts` | pass, end_turn, 4 turns, 19.3 s | pass, end_turn, 4 turns, 30.5 s | 527 |
+| `go` | pass, end_turn, 4 turns, 32.8 s | fail, max_turns, 20 turns, 207.7 s | 527 |
+
+On task 01 all three harnesses used 4 turns and 2,817 prompt tokens in total. The two task 07 failures are the blind edit loop from the pilot: 20 × `edit_file`, 20 × `old_str not found`, no `read_file`.
+
+The seconds differ because the machine slowed down, not because of the harness. The Ollama log shows the same 200-token turns at 5.5 s during the Python trial and at 8 to 11 s during the Go trial, which ran last, with prompt processing down from about 150 to about 70 tokens per second. A rerun of task 01 with the harnesses interleaved gave `py` 12.0 s, `go` 9.7 s, and `ts` 9.9 s. So one trial's seconds carry a machine-state error of about 2×. Compare time across harnesses only over many trials, in the same session.
+
+### Stage 2 smoke
+
+The 10 stage 2 configurations ran tasks 01 and 07, 1 trial each, into `runs/smoke/`. The suite skipped the six trials of the harness check as done. 20 of 20 trials are valid, 10 passed, 0 flagged, 0 infra errors in the final results. The first pass of the `docker` configuration gave 2 infra errors: Docker Desktop was not running. Nothing in the harness or the eval harness changed. Docker Desktop was started, and the two docker trials ran again. No container and no sandbox stayed alive.
+
+| Configuration | Task 01 | Task 07 | Seconds | Notes |
+|---|---|---|---|---|
+| `py.files.local.python.qwen3-8b.no-think` | fail, max_turns, 20 turns, 189.4 s | fail, max_turns, 20 turns, 120.9 s | 310.3 | Task 01: one list, two reads, then 17 × `edit_file` with a wrong `old_str`. Task 07: 20 blind edits, no read. |
+| `py.bash.local.python.qwen3-8b.no-think` | fail, end_turn, 2 turns, 9.6 s | fail, end_turn, 6 turns, 36.3 s | 45.9 | Task 01: one `echo`, then a question to the user. Task 07: GNU `sed -i` syntax, which fails on macOS, then an `echo >>` that left an `IndentationError`. |
+| `py.files-bash.local.python.qwen3-8b.no-think` | pass, end_turn, 4 turns, 14.1 s | fail, max_turns, 20 turns, 112.7 s | 126.8 | The baseline, from the harness check. Task 07: 20 blind edits. |
+| `py.files-bash.local.python.qwen3-8b.think` | pass, end_turn, 4 turns, 55.4 s | fail, end_turn, 3 turns, 73.1 s | 128.5 | Thinking on every turn, 300 to 1,200 characters each, about 4× the time per turn. Task 07: read, one edit with a literal `\n` in the code (`SyntaxError`), claimed done. |
+| `py.files-bash.local.typescript.qwen3-8b.no-think` | fail, end_turn, 4 turns, 10.6 s | pass, end_turn, 3 turns, 14.9 s | 25.5 | Task 01: wrong code ("multiplies the total by 1"), claimed done. |
+| `py.files-bash.local.rust.qwen3-8b.no-think` | fail, max_turns, 20 turns, 97.6 s | pass, end_turn, 3 turns, 13.4 s | 111.0 | Task 01: list, read, then 18 × `edit_file` with a wrong `old_str`. |
+| `py.files-bash.docker.python.qwen3-8b.no-think` | pass, end_turn, 4 turns, 60.8 s | pass, end_turn, 4 turns, 106.2 s | 167.0 | Rerun after the Docker Desktop start. The model generated at about 9 tokens per second right after that start, against about 35 before. Wave 4 measured 20.1 s for the same task 01 trial. |
+| `py.files-bash.cloud.python.qwen3-8b.no-think` | pass, end_turn, 4 turns, 27.1 s | fail, max_seconds, 15 turns, 300.0 s | 327.1 | Task 07: one read, then 14 edits with a wrong `old_str`. The clock stopped it before the turn limit. |
+| `ts.files-bash.local.python.qwen3-8b.no-think` | pass, end_turn, 4 turns, 19.3 s | pass, end_turn, 4 turns, 30.5 s | 49.8 | From the harness check. |
+| `go.files-bash.local.python.qwen3-8b.no-think` | pass, end_turn, 4 turns, 32.8 s | fail, max_turns, 20 turns, 207.7 s | 240.5 | From the harness check. Task 07: 20 blind edits. |
+
+Every failure is model behavior. The patterns are the ones from the pilot: the blind edit loop (5 trials), wrong code claimed done (3 trials), and a question to the user (1 trial). Two new facts for stage 2:
+
+- The `bash` set on the laptop hits the macOS `sed`. The model writes GNU `sed -i 's/a/b/'`, which BSD `sed` rejects. In `docker` and `cloud` the same command works. So the `env` axis changes what the `bash` set can do, as the pilot predicted.
+- Thinking makes each turn about 4× slower and did not stop the wrong-code pattern in 1 of 2 trials.
+
+The wave 5 smoke folders for `ts` on `docker` and `cloud` held two stale failures from a session in which the Mac slept (858 s wall clock, and a sandbox that E2B killed). Both ran again: task 01 passed on both, 46.7 s and 50.8 s.
+
+### Time estimates
+
+Seconds per trial in this smoke, by thinking mode:
+
+| Mode | Trials | Mean s per trial | Median s per trial |
+|---|---|---|---|
+| no-think | 18 | 78.0 | 34.6 |
+| think | 2 | 64.2 | 64.2 |
+
+From these means: stage 2 (270 no-think trials + 30 think trials) takes about 6.4 hours. The full grid (2,430 + 2,430) takes about 96 hours (4 days). Experiment 1 (60 + 60) takes about 2.4 hours.
+
+These means are low for two reasons. The smoke ran only tasks 01 and 07, the two tasks that the pilot passed. And only 2 thinking trials ran, both short. In the pilot 17 of 30 trials hit a limit. In this smoke a trial that hit a limit cost 171 s on average (97.6 to 300.0 s), and a trial that stopped on its own cost 31 s. With the pilot's share of limit hits (57%), a no-think trial costs about 111 s. A thinking turn takes about 14 s, so a thinking trial that loops hits the 300 s clock, and a thinking trial costs about 198 s. With these numbers: stage 2 about 10 hours, the full grid about 210 hours (9 days), Experiment 1 about 5 hours.
+
+Plan with these ranges: stage 2, 6 to 10 hours. The full grid, 4 to 9 days. Experiment 1, 2.5 to 5 hours.
+
+## Planned: Experiment 1, prompt × thinking
+
+The pilot showed two patterns: the model edits before it reads, and it never checks its work. Experiment 1 measures what two prompt sentences and thinking mode are each worth. It is a 2 × 2 on the baseline configuration (`py`, `files-bash`, `local`, `python`, `qwen3-8b`): the system prompt (v1 = the current prompt, v2 = the current prompt plus two rules) crossed with thinking (off, on). Each cell runs the 10 Python tasks × 3 trials.
+
+| Prompt | Thinking off | Thinking on |
+|---|---|---|
+| v1 (current) | 30 trials (= the pilot, rerun at the new limits) | 30 trials |
+| v2 (current + 2 rules) | 30 trials | 30 trials |
+
+The v2 prompt is `config/system_prompt_v2.txt`: the current prompt with these two lines appended as lines 7 and 8, exactly as written here:
+
+```
+Before you edit a file, read it.
+Before you say the change is done, run the tests.
+```
+
+Metrics: pass@1, pass^3, time per solved task, and mean turns. Status: planned. It needs a `prompt` config key in the three harnesses and a `--set key=value` flag in `run.py`, then about 2.5 to 5 hours of machine time (see "Time estimates" above). No harness loads the v2 file yet, and the current prompt file does not change.

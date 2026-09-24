@@ -30,6 +30,7 @@ E2B adds its own packages to every template, for example systemd, sudo, openssh-
 ## How the env uses the template
 
 - The env creates one sandbox per run, with the timeout `max_seconds` + 120 seconds (`SANDBOX_GRACE_SECONDS` in `src/harness/python/env/cloud.py`).
+- The TypeScript and Go harnesses hold the same value: `SANDBOX_GRACE_SECONDS` in `src/harness/typescript/env/cloud.ts`, and `sandboxGraceSeconds` in `src/harness/go/env/cloud.go`.
 - At start, it uploads the working folder to `/home/user/work`. Commands run there as the user `user`.
 - The file tools and `bash` act on the sandbox copy. The host folder does not change while the agent works.
 - At stop, the env downloads `/home/user/work` back over the host folder and kills the sandbox. `target`, `__pycache__`, `.pytest_cache`, and `node_modules` stay in the sandbox.

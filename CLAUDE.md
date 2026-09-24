@@ -20,13 +20,13 @@ This is a hand-built learning project. The owner writes every part by hand.
 
 A seam is the place in the code where one part can be swapped for another.
 
-- `model.py`: value seam.
-- `tools/`: behavior seam.
-- `env/`: behavior seam.
-- `tasks/`: data seam.
-- `harness/<lang>/`: the whole program. The eval harness picks the language by starting a different program.
+- model: value seam. One file in each harness (`model.py`, `model.ts`, `model.go`).
+- tools: behavior seam. The `tools/` folder in each harness.
+- env: behavior seam. The `env/` folder in each harness.
+- tasks: data seam. `tasks/<codebase>/`, shared by every harness.
+- harness per language: the whole program. `src/harness/python/`, `src/harness/typescript/`, and `src/harness/go/` have the same shape. The eval harness picks the language by starting a different program.
 
-The choice is made in `config/baseline.yaml`. Only `build.py` reads it. `build.py` is the composition root. Nothing below `build.py` checks the config.
+The choice is made in `config/baseline.yaml`. Only the composition root reads it: `build.py`, `build.ts`, or `build.go`. Nothing below the composition root checks the config.
 
 ## Configuration IDs and results
 
@@ -52,6 +52,7 @@ Results go to `runs/<config id>/<task>/<trial>/`. Each trial folder holds `trans
 
 - Every harness must match `docs/harness-spec.md` word for word. If you change the spec, change it in the spec first.
 - Never commit `runs/`. Commit only summary reports.
+- Run model evals on power with the lid open. System sleep stretches the timers and kills the sandboxes.
 - The eval harness is Python. The agent harnesses come in three languages. Do not share code between `src/evals` and `src/harness`.
 - Do not add dependencies or abstractions for parts that do not exist yet.
 - If the axes, counts, or plan change, update `docs/plan.html` in the same change.
