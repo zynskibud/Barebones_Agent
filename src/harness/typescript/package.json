@@ -1,0 +1,13 @@
+{
+  "name": "barebones-agent-harness",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "The TypeScript agent harness. Run it with Node 24: node src/harness/typescript/main.ts",
+  "engines": {
+    "node": ">=24"
+  },
+  "dependencies": {
+    "e2b": "2.51.0"
+  }
+}

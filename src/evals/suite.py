@@ -28,13 +28,19 @@ import time
 from pathlib import Path
 from typing import Any
 
+import subprocess
+
 import yaml
 
 import grade
 
-# The command that starts each harness. Add ts and go here when they exist.
+# The command that starts each harness, run from the repo root.
+# The Go harness runs as a built binary: `go run` turns every non-zero exit
+# code into 1, and the spec needs the real code. harness_command() builds it.
 HARNESS_COMMANDS: dict[str, list[str]] = {
     "py": ["uv", "run", "python", "src/harness/python/main.py"],
+    "ts": ["node", "src/harness/typescript/main.ts"],
+    "go": ["bin/barebones-go"],
 }
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -49,6 +55,22 @@ class HarnessNotFound(Exception):
     """No command is known for a harness."""
 
 
+GO_SOURCE = REPO_ROOT / "src" / "harness" / "go"
+GO_BINARY = REPO_ROOT / "bin" / "barebones-go"
+
+
+def build_go_harness() -> None:
+    """Build the Go harness once. Rebuild when a source file is newer than the binary."""
+    newest = max(path.stat().st_mtime for path in GO_SOURCE.rglob("*.go"))
+    if GO_BINARY.exists() and GO_BINARY.stat().st_mtime >= newest:
+        return
+    GO_BINARY.parent.mkdir(exist_ok=True)
+    subprocess.run(
+        ["go", "build", "-o", str(GO_BINARY), "./src/harness/go"],
+        cwd=REPO_ROOT, env=grade.project_env(), check=True,
+    )
+
+
 def harness_command(harness: str) -> list[str]:
     """Return the command that starts the harness, or raise HarnessNotFound."""
     if harness not in HARNESS_COMMANDS:
@@ -56,6 +78,8 @@ def harness_command(harness: str) -> list[str]:
             f"No command for harness '{harness}'. "
             "Add it to HARNESS_COMMANDS in src/evals/suite.py."
         )
+    if harness == "go":
+        build_go_harness()
     return HARNESS_COMMANDS[harness]
 
 

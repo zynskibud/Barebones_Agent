@@ -18,3 +18,7 @@ __pycache__/
 tasks/**/target/
 tasks/**/Cargo.lock
 tasks/**/node_modules/
+
+# Built harness binaries
+bin/
+go.work.sum

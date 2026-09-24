@@ -189,7 +189,7 @@ def test_config_file_replaces_axis_values(tmp_path):
 
 def test_unknown_harness_raises_before_any_trial():
     with pytest.raises(suite.HarnessNotFound, match="HARNESS_COMMANDS"):
-        suite.harness_command("ts")
+        suite.harness_command("rb")
 
 
 # Skip logic
