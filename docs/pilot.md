@@ -242,7 +242,7 @@ These means are low for two reasons. The smoke ran only tasks 01 and 07, the two
 
 Plan with these ranges: stage 2, 6 to 10 hours. The full grid, 4 to 9 days. Experiment 1, 2.5 to 5 hours.
 
-## Planned: Experiment 1, prompt × thinking
+## Experiment 1: prompt × thinking
 
 The pilot showed two patterns: the model edits before it reads, and it never checks its work. Experiment 1 measures what two prompt sentences and thinking mode are each worth. It is a 2 × 2 on the baseline configuration (`py`, `files-bash`, `local`, `python`, `qwen3-8b`): the system prompt (v1 = the current prompt, v2 = the current prompt plus two rules) crossed with thinking (off, on). Each cell runs the 10 Python tasks × 3 trials.
 
@@ -258,4 +258,40 @@ Before you edit a file, read it.
 Before you say the change is done, run the tests.
 ```
 
-Metrics: pass@1, pass^3, time per solved task, and mean turns. Status: planned. It needs a `prompt` config key in the three harnesses and a `--set key=value` flag in `run.py`, then about 2.5 to 5 hours of machine time (see "Time estimates" above). No harness loads the v2 file yet, and the current prompt file does not change.
+Metrics: pass@1, pass^3, time per solved task, and mean turns. Status: three of four cells done, on `env: local`. The fourth cell, v2 with thinking on, stopped at 26 of 30 trials (11 passed) and needs a full rerun. The rerun uses `env: docker`, because the baseline env moved to `docker` on 2026-09-25 (see `docs/harness-spec.md`, section 15, item h). See "Experiment 1 results" below for the numbers.
+
+## Experiment 1 results
+
+Date: 2026-09-24. Same machine, same Ollama, same model digest as the pilot. Configuration: the baseline (`py`, `files-bash`, `local`, `python`, `qwen3-8b`) with `prompt` set to v1 or v2 and `think` set to false or true. Limits: 20 turns, 300 seconds. Numbers are from `uv run python src/evals/report.py --runs runs/exp1/<cell>`.
+
+| Cell | Trials | pass@1 | pass@3 | pass^3 | s/solved | Mean turns | Mean seconds | Notes |
+|---|---|---|---|---|---|---|---|---|
+| v1, thinking off | 30 | 0.067 | 0.100 | 0.000 | 2091.6 | 14.2 | 139.4 | done |
+| v2, thinking off | 30 | 0.367 | 0.500 | 0.300 | 121.9 | 6.2 | 44.7 | done |
+| v1, thinking on | 30 | 0.433 | 0.700 | 0.100 | 500.4 | 3.3 | 216.9 | done |
+| v2, thinking on | 26 | 0.423 | 0.519 (k=2) | 0.333 (k=2) | 494.3 | 3.1 | 209.1 | local, 26 of 30, 11 passed, partial; docker rerun queued |
+
+### First tool call
+
+In the two thinking-off cells (30 trials each), the very first tool call of the trial:
+
+- v1 (current prompt): `edit_file` 19 of 30 trials, `list_files` 6, `read_file` 5. Most trials guess at a file before looking at it.
+- v2 (current prompt + 2 rules): `read_file` 15 of 30 trials, `list_files` 15, `edit_file` 0. No trial guesses first.
+
+The one line "Before you edit a file, read it." removed every blind first edit.
+
+### Stop-reason shift
+
+| Cell | end_turn | max_turns | max_seconds |
+|---|---|---|---|
+| v1, thinking off | 8 | 17 | 5 |
+| v2, thinking off | 25 | 4 | 1 |
+| v1, thinking on | 16 | 0 | 14 |
+| v2, thinking on (26 trials) | 15 | 0 | 11 |
+
+With thinking off, v1 mostly runs out of turns (17 of 30). v2 mostly stops on its own (25 of 30). With thinking on, no trial ever runs out of turns; the model that thinks either finishes in a few turns or spends the whole clock on one long turn, so trials instead run out of time (14 of 30 for v1, 11 of 26 for v2).
+
+### Conclusions
+
+- The two-line prompt change is worth more than it costs. It removes the blind-edit loop and raises pass@1 from 0.067 to 0.367 with thinking off, for no extra time per trial (139.4 s down to 44.7 s, because there is less looping).
+- Thinking on raises pass@1 further, but costs about 4 to 5 times the seconds per trial and turns `max_seconds` into the main stop reason. v1-think (0.433) already beats v2-nothink (0.367), and the partial v2-think cell (0.423) is close to v1-think, not clearly above it. So the prompt change and thinking mode do not stack: most of the value with thinking on comes from thinking itself, not from the prompt. The full v2-think rerun in `docker` will confirm or correct that partial read.

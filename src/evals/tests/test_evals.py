@@ -22,7 +22,7 @@ import report  # noqa: E402
 import run  # noqa: E402
 import suite  # noqa: E402
 
-BASELINE_ID = "py.files-bash.local.python.qwen3-8b.no-think"
+BASELINE_ID = "py.files-bash.docker.python.qwen3-8b.no-think"
 
 BUGGY = "def total(items):\n    return sum(price for price, qty in items)\n"
 FIXED = "def total(items):\n    return sum(price * qty for price, qty in items)\n"
@@ -184,7 +184,7 @@ def test_config_file_replaces_axis_values(tmp_path):
     written = yaml.safe_load(path.read_text())
     assert written["think"] is True
     assert written["max_turns"] == baseline["max_turns"]
-    assert path.parent.name == "py.files-bash.local.python.qwen3-8b.think"
+    assert path.parent.name == "py.files-bash.docker.python.qwen3-8b.think"
 
 
 def test_set_types_values_refuses_axes_and_reaches_every_config_file(fake_run, tmp_path, monkeypatch):
@@ -232,6 +232,70 @@ def test_dry_run_prints_the_set_pairs_after_the_configurations(capsys):
 def test_unknown_harness_raises_before_any_trial():
     with pytest.raises(suite.HarnessNotFound, match="HARNESS_COMMANDS"):
         suite.harness_command("rb")
+
+
+# The local-bash guard: env: local has no sandbox for bash, so a bash tool
+# set on local is blocked unless the operator passes --allow-local-bash.
+
+
+def test_blocked_local_bash_flags_bash_tool_sets_on_local():
+    assert run.blocked_local_bash({"tools": "bash", "env": "local"})
+    assert run.blocked_local_bash({"tools": "files-bash", "env": "local"})
+    assert not run.blocked_local_bash({"tools": "files", "env": "local"})
+    assert not run.blocked_local_bash({"tools": "files-bash", "env": "docker"})
+    assert not run.blocked_local_bash({"tools": "files-bash", "env": "cloud"})
+    assert not run.blocked_local_bash({"tools": "bash", "env": "docker"})
+
+
+def test_dry_run_stage_2_blocks_the_local_bash_variation(capsys):
+    assert run.main(["--dry-run", "--stage", "2"]) == 0
+    out = capsys.readouterr().out.splitlines()
+    local_variation = "py.files-bash.local.python.qwen3-8b.no-think"
+    blocked_line = f"{run.BLOCKED_LOCAL_BASH_MESSAGE}{local_variation}"
+    assert blocked_line in out
+    assert local_variation not in out  # it appears only inside the blocked line, never bare
+    assert "10 configurations" in out
+    assert "1 blocked" in out
+
+
+def test_dry_run_allow_local_bash_unblocks_stage_2(capsys):
+    assert run.main(["--dry-run", "--stage", "2", "--allow-local-bash"]) == 0
+    out = capsys.readouterr().out.splitlines()
+    assert "py.files-bash.local.python.qwen3-8b.no-think" in out
+    assert not any(line.startswith("blocked") for line in out)
+    assert "10 configurations" in out
+    assert "1 blocked" not in out
+
+
+def test_dry_run_full_grid_blocks_36_configurations(capsys):
+    assert run.main(["--dry-run"]) == 0
+    out = capsys.readouterr().out.splitlines()
+    assert "162 configurations" in out
+    assert "36 blocked" in out
+
+
+def test_main_run_skips_a_blocked_local_bash_configuration(fake_run, tmp_path, monkeypatch, capsys):
+    fake_run("fix")  # writes the fake task and points harness "py" at the fake script
+    runs_dir = tmp_path / "main-runs"
+    monkeypatch.setattr(run, "RUNS_DIR", runs_dir)
+    monkeypatch.setattr(run, "TASKS_ROOT", tmp_path / "tasks")
+    local_bash_id = "py.bash.local.python.qwen3-8b.no-think"
+    assert run.main(["--config", local_bash_id, "--trials", "1"]) == 0
+    out = capsys.readouterr().out
+    assert f"{run.BLOCKED_LOCAL_BASH_MESSAGE}{local_bash_id}" in out
+    assert not (runs_dir / local_bash_id).exists()
+
+
+def test_main_run_allows_local_bash_with_the_flag(fake_run, tmp_path, monkeypatch, capsys):
+    fake_run("fix")
+    runs_dir = tmp_path / "main-runs"
+    monkeypatch.setattr(run, "RUNS_DIR", runs_dir)
+    monkeypatch.setattr(run, "TASKS_ROOT", tmp_path / "tasks")
+    local_bash_id = "py.files-bash.local.python.qwen3-8b.no-think"
+    assert run.main(["--config", local_bash_id, "--trials", "1", "--allow-local-bash"]) == 0
+    out = capsys.readouterr().out
+    assert "blocked" not in out
+    assert (runs_dir / local_bash_id / "config.yaml").is_file()
 
 
 # Skip logic

@@ -57,3 +57,18 @@ Results go to `runs/<config id>/<task>/<trial>/`. Each trial folder holds `trans
 - Do not add dependencies or abstractions for parts that do not exist yet.
 - If the axes, counts, or plan change, update `docs/plan.html` in the same change.
 - Do not write project codes (for example H1 or E2) in any file.
+
+## Running experiments on this machine
+
+- Follow `.coord/PROTOCOL.md` (in `AI_Engineering/`) before any Ollama, Docker-heavy, or E2B run.
+- Every model run goes through `scripts/run.sh <id>` from `experiments.yaml`, never a bare `run.py` call for a full run. Start it detached (`nohup scripts/run.sh <id> > runs/<folder>/console.log 2>&1 &`) and watch it with `scripts/status.sh`.
+- The evaluated agent never runs `bash` on the host: use `env: docker` or `env: cloud`. `env: local` runs only with the `files` tool set. `--allow-local-bash` needs the owner's explicit word.
+- One Ollama job on the machine at a time. Take the heavy lock first.
+- Touch only `barebones-*` containers and processes that you started. Never touch another project's.
+- Results go under `runs/<folder>` (gitignored). Summaries go into `docs/`.
+- Report the start, the end, and any failure to the coordinator, with the result path.
+- After each experiment, append the decisions that need the human to `docs/OPEN-QUESTIONS.md` (question, default taken, effect). Take the default and continue. Do not block.
+- Stop and ask a human only for: disk under 15 GB, money over $5, or a failed isolation check.
+- Subagents: Sonnet 5 by default, Haiku 4.5 for mechanical work, Opus 5.5 for hard design or debugging. Never Fable 5.1. At most 8 subagents.
+- Keep the lid open and the Mac on power for a run. Wrap every run in `caffeinate -i`.
+- Read `docs/handoff.md` first.

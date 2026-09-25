@@ -74,7 +74,7 @@ Configuration ID rule:
 - `model-id` is the Ollama tag with `:` replaced by `-`. For example, `qwen3:8b` becomes `qwen3-8b`.
 - `think-id` is `think` if `think` is true, and `no-think` if `think` is false.
 
-Baseline: `py.files-bash.local.python.qwen3-8b.no-think`.
+Baseline: `py.files-bash.docker.python.qwen3-8b.no-think`. The pilot and Experiment 1 ran on `local`, before the baseline moved to `docker` on 2026-09-25 (section 15, item h).
 
 `build_agent` is the composition root. It is the only place that reads the choices. Other code gets its parts from `build_agent`.
 
@@ -351,3 +351,4 @@ These items state what the three harnesses already do. They change no rule.
 - (e) The `{detail}` text of `errors.invalid_arguments` is free text. The three harnesses currently keep it identical.
 - (f) The eval harness can build a harness before it runs it. It builds the Go harness into `bin/` when the binary is missing or older than a source file.
 - (g) The `prompt` key selects the system prompt file. If the key is absent, the harness reads `config/system_prompt.txt`. v1 runs never set it.
+- (h) The baseline env is `docker` since 2026-09-25. `local` with a bash tool set runs only with `--allow-local-bash`. No behavior of the harness changed.

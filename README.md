@@ -32,7 +32,7 @@ The tools are `read_file`, `list_files`, `edit_file`, and `bash`:
 - `model-id` is the Ollama tag with `:` changed to `-`. For example, `qwen3-8b`.
 - `think-id` is `think` or `no-think`.
 
-The baseline is `py.files-bash.local.python.qwen3-8b.no-think`.
+The baseline is `py.files-bash.docker.python.qwen3-8b.no-think`. The pilot and Experiment 1 ran on `local`, before the baseline moved to `docker` on 2026-09-25.
 
 Results go to `runs/<config id>/<task>/<trial>/`. Each trial folder holds `transcript.jsonl` and `result.json`.
 
@@ -195,6 +195,8 @@ uv run python src/evals/report.py --runs runs/exp1/v2-nothink
 uv run python src/evals/report.py --runs runs/exp1/v2-think
 ```
 
+These four commands are the exact commands that produced the Experiment 1 results, run before the baseline moved to `docker` on 2026-09-25. They target `env: local` with a bash tool set, so a repeat of them today needs `--allow-local-bash`. The v2-think rerun uses `docker` instead: see `experiments.yaml`.
+
 ## How the evals work
 
 - A **suite** is the fixed tasks, grader, limits, and prompt. It has 10 tasks for each codebase language.
@@ -214,11 +216,24 @@ The evals have three stages. Stage 1 is a pilot on the baseline. Stage 2 changes
   - Wave 4: integration. The Python harness ran a smoke run over the 3 envs × 3 codebases. The table is in `docs/pilot.md`, section "After the pilot". The spec is frozen as version 1.
   - Wave 5: the TypeScript and Go harnesses. Both match the Python harness byte for byte on the tool JSON, the prompt, and the request bodies.
   - Wave 6: integration. Harness check: the baseline with each of the three harnesses on tasks 01 and 07, 6 of 6 trials valid, the same first-call prompt tokens (527) for all three. Stage 2 smoke: the 10 stage 2 configurations on tasks 01 and 07, 20 of 20 trials valid, 10 passed, 0 infra errors, no leftover container or sandbox. Both tables are in `docs/pilot.md`, section "After wave 6". The spec gained a clarifications section (15), still version 1.
-  - Experiment 1 (prompt × thinking, 4 × 30 trials) is designed; see the Evals tab.
-  - Next: the stage 2 measurement, `uv run python src/evals/run.py --stage 2` (300 trials), about 6 to 10 hours on this Mac.
+  - Experiment 1 (prompt × thinking, 4 × 30 trials) ran on `local`. Three cells are done: v1-nothink, v2-nothink, v1-think. The fourth cell, v2-think, stopped at 26 of 30 trials and needs a full rerun. See `docs/pilot.md`, section "Experiment 1 results".
+  - Next: the v2-think rerun in `docker` (`runs/exp1/v2-think-docker`), then the stage 2 measurement. See `experiments.yaml`.
 - Two decisions after the pilot. Each one is reversible with one line.
   - The limits are 20 turns and 300 seconds. The pilot used 40 and 600. No passing pilot trial used more than 4 turns, and the failed loops burned 40 turns and up to 600 seconds. To go back, set `max_turns: 40` and `max_seconds: 600` in `config/baseline.yaml` and in the `limits` of every `task.yaml`.
   - Every Python task has an empty `conftest.py` in `repo/` and `solution/`, so a bare `pytest` finds the module under test, as `npm test` and `cargo test` find theirs. To go back, delete these 20 files.
+- The baseline env is now `docker` (2026-09-25). `local` with a bash tool set is blocked in `run.py` unless `--allow-local-bash` is passed. See "Running experiments" below.
+
+## Running experiments
+
+Every model run on this machine goes through the run contract, not a bare `run.py` call:
+
+- `experiments.yaml` is the queue: one entry per experiment, with its status, its exact command, and its result folder.
+- `scripts/preflight.sh` checks the machine (Ollama, Docker, disk, the coordinator lock) before a run.
+- `scripts/run.sh <experiment-id>` runs preflight, takes the coordinator lock, runs the command, and always releases the lock.
+- `scripts/status.sh` shows how every experiment is doing.
+- `docs/handoff.md` is the state of the project for a session that has not seen it before. Read it first.
+
+Isolation rule: the evaluated agent's `bash` tool is not fenced on `env: local`. Runs use `env: docker` or `env: cloud`. `env: local` is allowed only with the `files` tool set, because `safe_path` fences only the file tools. `local` with `bash` or `files-bash` is blocked in `run.py` unless the owner passes `--allow-local-bash`.
 
 ## More
 

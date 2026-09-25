@@ -3,7 +3,7 @@
 Usage:
     uv run python src/evals/run.py [--stage 1|2] [--config <id>[,<id>]]... [--dry-run]
                                    [--keep] [--trials N] [--tasks a,b] [--runs <folder>]
-                                   [--set key=value]... [--validate-tasks]
+                                   [--set key=value]... [--validate-tasks] [--allow-local-bash]
 
 config/grid.yaml gives the axes. config/baseline.yaml gives the baseline value on every
 axis and the defaults for every other key (num_ctx, temperature, max_turns, max_seconds).
@@ -30,6 +30,12 @@ another value, for example --set prompt=config/system_prompt_v2.txt, needs its o
 --tasks takes task folder names or task.yaml names, separated by commas.
 --validate-tasks checks every task under tasks/<codebase>/: repo/ plus hidden_tests/ must
 fail the test_command, and repo/ with solution/ copied over it plus hidden_tests/ must pass.
+
+env: local has no sandbox for bash: the safe_path fence wraps only the file tools. A
+configuration with env: local and a tool set that includes bash (bash or files-bash) is
+blocked. --allow-local-bash removes the block, for a session that has the owner's word.
+A blocked configuration is skipped and printed, not treated as an error, so the rest of
+the selection still runs. --dry-run marks blocked configurations the same way.
 """
 
 import argparse
@@ -111,6 +117,26 @@ def select_configs(
         return configs
     limit = 0 if stage == 1 else 1
     return [c for c in configs if differing_axes(c, baseline) <= limit]
+
+
+BLOCKED_LOCAL_BASH_MESSAGE = (
+    "blocked (local env with a bash tool set; pass --allow-local-bash to run on the host): "
+)
+
+
+def blocked_local_bash(values: dict[str, Any]) -> bool:
+    """Return True if this configuration runs the bash tool directly on the host.
+
+    env: local has no sandbox: safe_path fences only the file tools, so a bash or
+    files-bash tool set on local can read or write anywhere the user can. This
+    configuration needs the owner's explicit --allow-local-bash to run.
+    """
+    return values["env"] == "local" and values["tools"] in ("bash", "files-bash")
+
+
+def print_blocked(values: dict[str, Any]) -> None:
+    """Print the one-line message for a configuration that the guard skips."""
+    print(f"{BLOCKED_LOCAL_BASH_MESSAGE}{config_id(values)}")
 
 
 def pick_configs(configs: list[dict[str, Any]], ids: list[str]) -> list[dict[str, Any]]:
@@ -277,6 +303,11 @@ def parse_args(argv: list[str] | None) -> argparse.Namespace:
         "its own --runs folder, for example one folder per prompt version.",
     )
     parser.add_argument("--validate-tasks", action="store_true", help="Check every task and exit.")
+    parser.add_argument(
+        "--allow-local-bash", action="store_true",
+        help="Run a configuration with env: local and a bash tool set. Blocked by default: "
+        "local has no sandbox for bash. Use only with the owner's explicit word.",
+    )
     args = parser.parse_args(argv)
     if args.trials < 1:
         parser.error("--trials must be 1 or more")
@@ -311,9 +342,16 @@ def main(argv: list[str] | None = None) -> int:
             return 2
 
     if args.dry_run:
+        blocked = 0
         for values in selected:
-            print(config_id(values))
+            if blocked_local_bash(values) and not args.allow_local_bash:
+                print_blocked(values)
+                blocked += 1
+            else:
+                print(config_id(values))
         print(f"{len(selected)} configuration{'' if len(selected) == 1 else 's'}")
+        if blocked:
+            print(f"{blocked} blocked")
         for key, value in args.overrides.items():
             # The line exactly as it goes into each config.yaml.
             print(f"set {yaml.safe_dump({key: value}).strip()}")
@@ -326,9 +364,17 @@ def main(argv: list[str] | None = None) -> int:
             return 2
 
     runs_dir = args.runs if args.runs is not None else RUNS_DIR
-    print(f"{len(selected)} configurations, {args.trials} trials per task. Results go to {runs_dir}.")
+    blocked = 0
+    runnable = []
+    for values in selected:
+        if blocked_local_bash(values) and not args.allow_local_bash:
+            print_blocked(values)
+            blocked += 1
+        else:
+            runnable.append(values)
+    print(f"{len(runnable)} configurations, {args.trials} trials per task. Results go to {runs_dir}.")
     try:
-        for values in selected:
+        for values in runnable:
             cid = config_id(values)
             suite.harness_command(values["harness"])
             config = build_config(baseline, values, args.overrides)
@@ -349,6 +395,8 @@ def main(argv: list[str] | None = None) -> int:
     except KeyboardInterrupt:
         print("\nStopped. Run the same command again to continue.", file=sys.stderr)
         return 130
+    if blocked:
+        print(f"{blocked} blocked")
     print("Done. Run src/evals/report.py for the table.")
     return 0
 

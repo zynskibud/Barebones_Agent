@@ -1,7 +1,8 @@
 # One configuration, for a chat.
 harness: py          # the harness program: py, ts, or go
 tools: files-bash    # the tool set: files, bash, or files-bash
-env: local           # where the tools run: local, docker, or cloud
+# docker is the default since 2026-09-25: bash on local is not isolated (docs/harness-spec.md section 15).
+env: docker          # where the tools run: local, docker, or cloud
 codebase: python     # the task language: python, typescript, or rust
 model: qwen3:8b      # the Ollama tag
 think: false         # the model thinking mode: false or true

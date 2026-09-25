@@ -1,0 +1,208 @@
+# The experiment queue for Barebones Agent.
+#
+# One entry per experiment. Fields:
+#   id          short name, used by scripts/run.sh and scripts/status.sh
+#   priority    1 = first. 0 means the entry is already done, not queued.
+#   status      done | ready | blocked-on <text> | planned
+#   command     the exact shell line, or null if none exists yet
+#   trials      trials in this experiment, or null if not designed yet
+#   est_hours   estimated (or, for done entries, actual) machine hours
+#   needs       ollama tag, docker yes/no, e2b yes/no, e2b_cost_usd estimate
+#   done_when   a check a script can run to see if the experiment is finished
+#   results     the results folder, or null
+#
+# Read this with: uv run python -c "import yaml; print(yaml.safe_load(open('experiments.yaml')))"
+
+- id: exp1-v2-think-docker
+  priority: 1
+  status: ready
+  command: >-
+    caffeinate -i uv run python src/evals/run.py
+    --runs runs/exp1/v2-think-docker
+    --config py.files-bash.docker.python.qwen3-8b.think
+    --set prompt=config/system_prompt_v2.txt
+  trials: 30
+  est_hours: 1.8
+  needs:
+    ollama: qwen3:8b
+    docker: yes
+    e2b: no
+  done_when: "30 result.json files with a non-null passed, under runs/exp1/v2-think-docker/*/trial-*/"
+  results: runs/exp1/v2-think-docker
+  note: >-
+    Full rerun of the v2-think cell, in docker. The local attempt stopped at
+    26 of 30 trials (11 passed); see exp1-v2-think-local-partial below. The
+    coordinator decision (2026-09-25) is to keep the local partial cell and
+    rerun the full cell in docker rather than resume it on local.
+
+- id: stage2-v2-docker
+  priority: 2
+  status: ready
+  command: >-
+    caffeinate -i uv run python src/evals/run.py
+    --runs runs/stage2-v2 --stage 2
+    --set prompt=config/system_prompt_v2.txt
+  trials: 270
+  est_hours: 6
+  needs:
+    ollama: qwen3:8b
+    docker: yes
+    e2b: yes
+    e2b_cost_usd: 0.11
+  done_when: "270 result.json files with a non-null passed, under runs/stage2-v2/*/*/trial-*/"
+  results: runs/stage2-v2
+  note: >-
+    Stage 2 has 10 configurations; the local + files-bash one is blocked by
+    the run.py guard, so 9 run (8 no-think at 45 to 140 s, 1 think at about
+    210 s) x 30 trials = 270. One configuration is env: cloud, about 30
+    trials x 100 s, about $0.11 of E2B time.
+
+- id: lever-1-tool-errors
+  priority: 3
+  status: planned
+  command: null
+  trials: null
+  est_hours: null
+  needs:
+    ollama: null
+    docker: null
+    e2b: null
+  done_when: null
+  results: null
+  note: "Needs a build first: a richer edit_file not-found error (for example, the nearest matching line)."
+
+- id: lever-2-auto-tests
+  priority: 4
+  status: planned
+  command: null
+  trials: null
+  est_hours: null
+  needs:
+    ollama: null
+    docker: null
+    e2b: null
+  done_when: null
+  results: null
+  note: "Needs a build first: the harness runs the task tests after each edit_file call and returns the output."
+
+- id: harbor-terminal-bench-2.1-subset
+  priority: 5
+  status: planned
+  command: null
+  trials: null
+  est_hours: null
+  needs:
+    ollama: null
+    docker: null
+    e2b: null
+  done_when: null
+  results: null
+  note: "Needs the Harbor adapter that starts the harness in task mode against a Terminal-Bench 2.1 task."
+
+- id: full-grid-v2
+  priority: 6
+  status: planned
+  command: >-
+    caffeinate -i uv run python src/evals/run.py
+    --runs runs/grid-v2
+    --set prompt=config/system_prompt_v2.txt
+  trials: 3780
+  est_hours: 144
+  needs:
+    ollama: qwen3:8b
+    docker: yes
+    e2b: yes
+    e2b_cost_usd: 10
+  done_when: "3780 result.json files with a non-null passed, under runs/grid-v2/*/*/*/trial-*/"
+  results: runs/grid-v2
+  note: >-
+    162 configurations minus 36 blocked (local + bash tool sets) = 126
+    runnable configurations x 30 trials = 3,780 trials. 4 to 8 days of
+    machine time. e2b_cost_usd is a rough estimate for the cloud
+    configurations, well inside the $100 credit.
+
+# Finished experiments. Kept here so the queue is the one place that lists
+# every experiment, past and future.
+
+- id: pilot
+  priority: 0
+  status: done
+  command: caffeinate -i uv run python src/evals/run.py --stage 1
+  trials: 30
+  est_hours: 1.9
+  needs:
+    ollama: qwen3:8b
+    docker: no
+    e2b: no
+  done_when: "30 result.json files with a non-null passed, under runs/py.files-bash.local.python.qwen3-8b.no-think/*/trial-*/"
+  results: runs/py.files-bash.local.python.qwen3-8b.no-think
+  note: "Ran on env: local, before the baseline moved to docker (2026-09-25). pass@1 0.10. See docs/pilot.md."
+
+- id: exp1-v1-nothink
+  priority: 0
+  status: done
+  command: >-
+    caffeinate -i uv run python src/evals/run.py --runs runs/exp1/v1-nothink
+    --config py.files-bash.local.python.qwen3-8b.no-think
+  trials: 30
+  est_hours: 1.2
+  needs:
+    ollama: qwen3:8b
+    docker: no
+    e2b: no
+  done_when: "30 result.json files with a non-null passed, under runs/exp1/v1-nothink/*/*/trial-*/"
+  results: runs/exp1/v1-nothink
+  note: "Ran on env: local, before the docker switch. pass@1 0.067, 30/30 trials graded."
+
+- id: exp1-v2-nothink
+  priority: 0
+  status: done
+  command: >-
+    caffeinate -i uv run python src/evals/run.py --runs runs/exp1/v2-nothink
+    --config py.files-bash.local.python.qwen3-8b.no-think
+    --set prompt=config/system_prompt_v2.txt
+  trials: 30
+  est_hours: 0.4
+  needs:
+    ollama: qwen3:8b
+    docker: no
+    e2b: no
+  done_when: "30 result.json files with a non-null passed, under runs/exp1/v2-nothink/*/*/trial-*/"
+  results: runs/exp1/v2-nothink
+  note: "Ran on env: local, before the docker switch. pass@1 0.367, 30/30 trials graded."
+
+- id: exp1-v1-think
+  priority: 0
+  status: done
+  command: >-
+    caffeinate -i uv run python src/evals/run.py --runs runs/exp1/v1-think
+    --config py.files-bash.local.python.qwen3-8b.think
+  trials: 30
+  est_hours: 1.8
+  needs:
+    ollama: qwen3:8b
+    docker: no
+    e2b: no
+  done_when: "30 result.json files with a non-null passed, under runs/exp1/v1-think/*/*/trial-*/"
+  results: runs/exp1/v1-think
+  note: "Ran on env: local, before the docker switch. pass@1 0.433, 30/30 trials graded."
+
+- id: exp1-v2-think-local-partial
+  priority: 0
+  status: done
+  command: >-
+    caffeinate -i uv run python src/evals/run.py --runs runs/exp1/v2-think
+    --config py.files-bash.local.python.qwen3-8b.think
+    --set prompt=config/system_prompt_v2.txt
+  trials: 26
+  est_hours: 1.5
+  needs:
+    ollama: qwen3:8b
+    docker: no
+    e2b: no
+  done_when: "26 result.json files with a non-null passed, under runs/exp1/v2-think/*/*/trial-*/ (stopped early, 4 trials short of 30)"
+  results: runs/exp1/v2-think
+  note: >-
+    Stopped early on env: local at 26 of 30 trials, 11 passed. Kept as the
+    partial record; the full cell reruns in docker as exp1-v2-think-docker
+    above, into a separate folder.

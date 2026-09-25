@@ -448,13 +448,13 @@ table.et { border-collapse: collapse; width: 100%; font-size: 14px; }
     <div class="view">
       <div class="view-head">
         <h2>Run order</h2>
-        <p>Each stage uses the result of the stage before it. Trial counts use 10 tasks and 3 trials for each configuration.</p>
+        <p>Each stage uses the result of the stage before it. Trial counts use 10 tasks and 3 trials for each configuration. The baseline env is <code>docker</code> since 2026-09-25; the pilot and Experiment 1 ran on <code>local</code>, before the switch.</p>
       </div>
       <div class="twrap">
         <table class="et">
           <thead><tr><th>Stage</th><th>What runs</th><th>Configs</th><th>Trials</th><th>What you learn</th></tr></thead>
           <tbody>
-            <tr><td>1. Pilot</td><td>One baseline configuration: <code>py.files-bash.local.python.qwen3-8b.no-think</code></td><td class="num">1</td><td class="num">30</td><td>The real time and tokens per trial. Bugs in the eval harness.</td></tr>
+            <tr><td>1. Pilot</td><td>One baseline configuration: <code>py.files-bash.docker.python.qwen3-8b.no-think</code></td><td class="num">1</td><td class="num">30</td><td>The real time and tokens per trial. Bugs in the eval harness.</td></tr>
             <tr><td>2. One axis at a time</td><td>Start from the baseline. Change one axis to each of its other values.</td><td class="num">10</td><td class="num">300</td><td>The effect of each axis, from the baseline only.</td></tr>
             <tr><td>3. Full grid</td><td>All configurations</td><td class="num">162</td><td class="num">4,860</td><td>Interactions. For example: bash helps in the Python codebase but not in the Rust codebase. Stage 2 cannot show this.</td></tr>
           </tbody>
@@ -491,7 +491,7 @@ table.et { border-collapse: collapse; width: 100%; font-size: 14px; }
         </table>
       </div>
       <p class="note">The v2 prompt is <code>config/system_prompt_v2.txt</code>: the current prompt plus the lines <code>Before you edit a file, read it.</code> and <code>Before you say the change is done, run the tests.</code> as lines 7 and 8. Metrics: pass@1, pass^3, time per solved task, mean turns.</p>
-      <p class="note"><b>Status:</b> planned; needs a <code>prompt</code> config key in the three harnesses and a <code>--set key=value</code> flag in <code>run.py</code>, then about 2.5 to 5 hours (from the wave 6 smoke: 78 s per no-think trial and 64 s per thinking trial as measured, up to 111 s and 198 s with the pilot's share of limit hits; 4 cells × 30 trials).</p>
+      <p class="note"><b>Status:</b> three cells done on <code>local</code> (pass@1: v1-nothink 0.067, v2-nothink 0.367, v1-think 0.433); v2-think stopped at 26 of 30 trials (11 passed) and needs a full rerun. v2-think rerun in docker queued (<code>runs/exp1/v2-think-docker</code>). See <code>docs/pilot.md</code>, section "Experiment 1 results".</p>
     </div>
 
     <div class="view">
@@ -656,7 +656,7 @@ table.et { border-collapse: collapse; width: 100%; font-size: 14px; }
         </table>
       </div>
       <p class="note">Six commits, one per wave. One push after wave 6. Twelve agent runs, never more than four at once.</p>
-      <p class="note"><b>Status:</b> waves 0 to 6 are done (2026-09-24). Pilot on the baseline: pass@1 0.10 over 30 trials. Wave 6 harness check: the baseline with each of the three harnesses on tasks 01 and 07, 6 of 6 trials valid, the same first-call prompt tokens for all three. Stage 2 smoke: the 10 configurations on tasks 01 and 07, 20 of 20 trials valid, 10 passed, 0 infra errors, no leftover container or sandbox. Limits are 20 turns and 300 s. The spec is frozen at version 1. Next: the stage 2 measurement, 300 trials, about 6 to 10 hours.</p>
+      <p class="note"><b>Status:</b> waves 0 to 6 are done (2026-09-24). Pilot on the baseline: pass@1 0.10 over 30 trials. Wave 6 harness check: the baseline with each of the three harnesses on tasks 01 and 07, 6 of 6 trials valid, the same first-call prompt tokens for all three. Stage 2 smoke: the 10 configurations on tasks 01 and 07, 20 of 20 trials valid, 10 passed, 0 infra errors, no leftover container or sandbox. Limits are 20 turns and 300 s. The spec is frozen at version 1. Isolation switch 2026-09-25: baseline env <code>docker</code>, <code>local</code> with a bash tool set blocked; run contract in <code>experiments.yaml</code> and <code>scripts/</code>. Next: the stage 2 measurement, 300 trials, about 6 to 10 hours.</p>
 
       <h3 class="sub-h">The model rule</h3>
       <ul class="notes">
