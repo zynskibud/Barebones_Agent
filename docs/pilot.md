@@ -258,7 +258,7 @@ Before you edit a file, read it.
 Before you say the change is done, run the tests.
 ```
 
-Metrics: pass@1, pass^3, time per solved task, and mean turns. Status: three of four cells done, on `env: local`. The fourth cell, v2 with thinking on, stopped at 26 of 30 trials (11 passed) and needs a full rerun. The rerun uses `env: docker`, because the baseline env moved to `docker` on 2026-09-25 (see `docs/harness-spec.md`, section 15, item h). See "Experiment 1 results" below for the numbers.
+Metrics: pass@1, pass^3, time per solved task, and mean turns. Status: complete on 2026-09-25. Three cells ran on `env: local`. The fourth cell, v2 with thinking on, stopped at 26 of 30 on `local` and then ran in full on `env: docker`, because the baseline env moved to `docker` on 2026-09-25 (see `docs/harness-spec.md`, section 15, item h). See "Experiment 1 results" below for the numbers.
 
 ## Experiment 1 results
 
@@ -269,7 +269,8 @@ Date: 2026-09-24. Same machine, same Ollama, same model digest as the pilot. Con
 | v1, thinking off | 30 | 0.067 | 0.100 | 0.000 | 2091.6 | 14.2 | 139.4 | done |
 | v2, thinking off | 30 | 0.367 | 0.500 | 0.300 | 121.9 | 6.2 | 44.7 | done |
 | v1, thinking on | 30 | 0.433 | 0.700 | 0.100 | 500.4 | 3.3 | 216.9 | done |
-| v2, thinking on | 26 | 0.423 | 0.519 (k=2) | 0.333 (k=2) | 494.3 | 3.1 | 209.1 | local, 26 of 30, 11 passed, partial; docker rerun queued |
+| v2, thinking on (local, partial) | 26 | 0.423 | 0.519 (k=2) | 0.333 (k=2) | 494.3 | 3.1 | 209.1 | local, 26 of 30, 11 passed, kept as history |
+| v2, thinking on (docker, full) | 30 | 0.333 | 0.500 | 0.200 | 624.2 | 3.0 | 208.1 | docker, 30 of 30, 10 passed; 16 end_turn, 14 max_seconds; the cell used for comparisons |
 
 ### First tool call
 
@@ -294,4 +295,6 @@ With thinking off, v1 mostly runs out of turns (17 of 30). v2 mostly stops on it
 ### Conclusions
 
 - The two-line prompt change is worth more than it costs. It removes the blind-edit loop and raises pass@1 from 0.067 to 0.367 with thinking off, for no extra time per trial (139.4 s down to 44.7 s, because there is less looping).
-- Thinking on raises pass@1 further, but costs about 4 to 5 times the seconds per trial and turns `max_seconds` into the main stop reason. v1-think (0.433) already beats v2-nothink (0.367), and the partial v2-think cell (0.423) is close to v1-think, not clearly above it. So the prompt change and thinking mode do not stack: most of the value with thinking on comes from thinking itself, not from the prompt. The full v2-think rerun in `docker` will confirm or correct that partial read.
+- Thinking on raises pass@1 further, but costs about 4 to 5 times the seconds per trial and turns `max_seconds` into the main stop reason. v1-think (0.433) already beats v2-nothink (0.367), and the partial v2-think cell (0.423) is close to v1-think, not clearly above it. So the prompt change and thinking mode do not stack: most of the value with thinking on comes from thinking itself, not from the prompt. The full v2-think rerun in `docker` confirmed it: 0.333, below v1-think (0.433) and below v2-nothink (0.367). Per task it solved 01 and 06 three times each, 09 twice, 04 and 07 once, and 02, 03, 05, 08, 10 never.
+
+**Conclusion of Experiment 1.** The two prompt sentences and thinking mode each fix the blind-edit habit, and they do not add up. The best cell by cost is prompt v2 with thinking off: pass@1 0.367 at 45 s per trial and 122 s per solved task. Thinking on reaches a few more tasks at least once (pass@3 0.70 with v1) but costs 4 to 5 times the time and hits the 300 s limit in 14 of 30 trials in both prompt versions, so its numbers are a lower bound under this limit. The working setting for stage 2 and the lever experiments is prompt v2 with thinking off; thinking stays an axis.

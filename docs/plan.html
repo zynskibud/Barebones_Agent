@@ -491,7 +491,7 @@ table.et { border-collapse: collapse; width: 100%; font-size: 14px; }
         </table>
       </div>
       <p class="note">The v2 prompt is <code>config/system_prompt_v2.txt</code>: the current prompt plus the lines <code>Before you edit a file, read it.</code> and <code>Before you say the change is done, run the tests.</code> as lines 7 and 8. Metrics: pass@1, pass^3, time per solved task, mean turns.</p>
-      <p class="note"><b>Status:</b> three cells done on <code>local</code> (pass@1: v1-nothink 0.067, v2-nothink 0.367, v1-think 0.433); v2-think stopped at 26 of 30 trials (11 passed) and needs a full rerun. v2-think rerun in docker queued (<code>runs/exp1/v2-think-docker</code>). See <code>docs/pilot.md</code>, section "Experiment 1 results".</p>
+      <p class="note"><b>Status:</b> complete (2026-09-25). pass@1: v1/off 0.067, v2/off 0.367, v1/on 0.433, v2/on 0.333 (docker, 30 trials). The prompt and thinking each fix the blind-edit habit and do not add up. Best cell by cost: v2 with thinking off, 45 s per trial. Working setting from here: prompt v2, thinking off. See <code>docs/pilot.md</code>, section "Experiment 1 results".</p>
     </div>
 
     <div class="view">

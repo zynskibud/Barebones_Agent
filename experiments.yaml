@@ -14,15 +14,15 @@
 # Read this with: uv run python -c "import yaml; print(yaml.safe_load(open('experiments.yaml')))"
 
 - id: exp1-v2-think-docker
-  priority: 1
-  status: ready
+  priority: 0
+  status: done
   command: >-
     caffeinate -i uv run python src/evals/run.py
     --runs runs/exp1/v2-think-docker
     --config py.files-bash.docker.python.qwen3-8b.think
     --set prompt=config/system_prompt_v2.txt
   trials: 30
-  est_hours: 1.8
+  est_hours: 1.75
   needs:
     ollama: qwen3:8b
     docker: yes
@@ -34,6 +34,7 @@
     26 of 30 trials (11 passed); see exp1-v2-think-local-partial below. The
     coordinator decision (2026-09-25) is to keep the local partial cell and
     rerun the full cell in docker rather than resume it on local.
+  result: "pass@1 0.333, pass@3 0.500, pass^3 0.200, 208 s per trial, 14 of 30 hit max_seconds; ended 2026-09-25 19:18"
 
 - id: stage2-v2-docker
   priority: 2

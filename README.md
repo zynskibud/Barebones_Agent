@@ -195,7 +195,7 @@ uv run python src/evals/report.py --runs runs/exp1/v2-nothink
 uv run python src/evals/report.py --runs runs/exp1/v2-think
 ```
 
-These four commands are the exact commands that produced the Experiment 1 results, run before the baseline moved to `docker` on 2026-09-25. They target `env: local` with a bash tool set, so a repeat of them today needs `--allow-local-bash`. The v2-think rerun uses `docker` instead: see `experiments.yaml`.
+- Experiment 1 is complete: pass@1 v1/off 0.067, v2/off 0.367, v1/on 0.433, v2/on 0.333 (docker). Working setting: prompt v2, thinking off. Next: stage 2 on the coordinator's GO. See `docs/pilot.md`.
 
 ## How the evals work
 

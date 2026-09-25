@@ -22,9 +22,10 @@ Experiment 1 (prompt v1 or v2, thinking off or on), 30 trials per cell, on `loca
 | v1, thinking off | 0.067 | 0.100 | 0.000 | done (30/30) |
 | v2, thinking off | 0.367 | 0.500 | 0.300 | done (30/30) |
 | v1, thinking on | 0.433 | 0.700 | 0.100 | done (30/30) |
-| v2, thinking on | 0.423 | 0.519 (k=2) | 0.333 (k=2) | **partial**, stopped at 26/30, 11 passed |
+| v2, thinking on (local, partial) | 0.423 | 0.519 (k=2) | 0.333 (k=2) | stopped at 26/30, 11 passed, kept as history |
+| v2, thinking on (docker, full) | 0.333 | 0.500 | 0.200 | 30/30, 10 passed, 208 s per trial; the cell used for comparisons |
 
-The full v2-thinking-on cell reruns in `docker`, into `runs/exp1/v2-think-docker`, as its own experiment. See `docs/pilot.md`, section "Experiment 1 results", for the full write-up: the v2 prompt removes the blind-first-edit pattern (19 of 30 v1 trials vs. 0 of 30 v2 trials), and shifts the stop reason from `max_turns` to `end_turn`.
+Experiment 1 is complete. The prompt and thinking each fix the blind-edit habit and do not add up; the working setting is prompt v2 with thinking off. See `docs/pilot.md`, section "Experiment 1 results", for the full write-up: the v2 prompt removes the blind-first-edit pattern (19 of 30 v1 trials vs. 0 of 30 v2 trials), and shifts the stop reason from `max_turns` to `end_turn`.
 
 ## Decisions and their dates
 
@@ -66,8 +67,8 @@ Read `.coord/PROTOCOL.md` before any Ollama, Docker-heavy, or E2B run. Take the 
 
 ## What is waiting on whom
 
-- Waiting on the coordinator: "GO exp1-v2-think-docker", to run the queued rerun of the v2-thinking-on cell in `docker`.
-- After that: "GO stage2-v2-docker", the one-axis-at-a-time measurement with the v2 prompt.
+- Experiment 1 ended on 2026-09-25 at 19:18. The lock is released. The coordinator runs the Vector sweep next.
+- Waiting on the coordinator: "GO stage2-v2-docker", the one-axis-at-a-time measurement with the v2 prompt (270 trials, about 6 h).
 - `docs/OPEN-QUESTIONS.md` lists the decisions taken by default so far (the partial cell, the stage 2 prompt version, the thinking-mode time limit, the local/bash grid question, and the E2B spending approval). None of them block a run; the coordinator can revisit any of them at any time.
 
 ## How to start and resume a run
