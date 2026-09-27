@@ -88,17 +88,35 @@
 
 - id: harbor-terminal-bench-2.1-subset
   priority: 5
-  status: planned
-  command: null
-  trials: null
-  est_hours: null
+  status: blocked-on coordinator GO and a 20-task subset list
+  command: >-
+    caffeinate -i env PYTHONPATH=. HARBOR_SET=prompt=config/system_prompt_v2.txt
+    uv run harbor run
+    --dataset terminal-bench/terminal-bench-2-1
+    --agent src.evals.harbor.agent:BarebonesAgent
+    --n-concurrent 1
+    --jobs-dir runs/harbor-tb21
+    --job-name tb21-subset
+    -i TASK_1 -i TASK_2 -i TASK_3 -i TASK_4 -i TASK_5
+    -i TASK_6 -i TASK_7 -i TASK_8 -i TASK_9 -i TASK_10
+    -i TASK_11 -i TASK_12 -i TASK_13 -i TASK_14 -i TASK_15
+    -i TASK_16 -i TASK_17 -i TASK_18 -i TASK_19 -i TASK_20
+  trials: 20 x 1
+  est_hours: 4
   needs:
-    ollama: null
-    docker: null
-    e2b: null
-  done_when: null
-  results: null
-  note: "Needs the Harbor adapter that starts the harness in task mode against a Terminal-Bench 2.1 task."
+    ollama: true
+    docker: true
+    e2b: false
+  done_when: "20 trial folders under runs/harbor-tb21/tb21-subset/, each with agent/result.json and a verifier reward"
+  results: runs/harbor-tb21
+  note: >-
+    Replace TASK_1..TASK_20 with the subset list. Before the first run:
+    (1) the image pulls and builds are CPU-BULK under the protocol; pull them in a separate step with the heavy lock;
+    (2) Terminal-Bench 2.1 tasks need Docker, and Harbor starts one container per task (its default --env is docker);
+    (3) keep --n-concurrent 1 and the machine otherwise idle;
+    (4) est_hours assumes 300 s for our loop plus about 5 min of build and verifier per task; Harbor's own per-task agent timeout is longer than our max_seconds, so our loop ends first;
+    (5) check the dataset name with harbor dataset list or the Harbor Hub, and do a one-task smoke run first;
+    (6) the container images must have bash and GNU timeout.
 
 - id: full-grid-v2
   priority: 6

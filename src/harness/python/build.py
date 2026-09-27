@@ -11,6 +11,7 @@ from pathlib import Path
 from env.base import Env
 from env.cloud import CloudEnv
 from env.docker import DockerEnv
+from env.harbor import HarborEnv
 from env.local import LocalEnv
 from model import Model
 from tools import bash, files
@@ -21,7 +22,7 @@ CONFIG_DIR = REPO_ROOT / "config"
 # The system prompt file when the config has no prompt key, relative to the repo root.
 DEFAULT_PROMPT = "config/system_prompt.txt"
 
-ENVS = {"local": LocalEnv, "docker": DockerEnv, "cloud": CloudEnv}
+ENVS = {"local": LocalEnv, "docker": DockerEnv, "cloud": CloudEnv, "harbor": HarborEnv}
 
 HANDLERS = {
     "read_file": files.read_file,
@@ -43,11 +44,15 @@ class Agent:
     max_seconds: float
 
 
-def build_agent(config: dict, workdir: str) -> Agent:
-    """Read the choices in config and build every part."""
+def build_agent(config: dict, workdir: str, env_options: dict | None = None) -> Agent:
+    """Read the choices in config and build every part.
+
+    env_options go to the env as keyword arguments. The harbor env gets the
+    Harbor environment and its event loop this way. The other envs get none.
+    """
     env_class = ENVS[config["env"]]
     # Every env gets max_seconds. An env that needs no time limit ignores it.
-    env = env_class(workdir, max_seconds=config["max_seconds"])
+    env = env_class(workdir, max_seconds=config["max_seconds"], **(env_options or {}))
     messages = json.loads((CONFIG_DIR / "messages.json").read_text(encoding="utf-8"))
     tools_file = json.loads((CONFIG_DIR / "tools.json").read_text(encoding="utf-8"))
     definitions = [tools_file["tools"][name] for name in tools_file["sets"][config["tools"]]]
