@@ -93,7 +93,12 @@ fi
 
 echo
 echo "Running src/evals/run.py processes:"
-running="$(pgrep -fl "src/evals/run.py" 2>/dev/null)"
+# Match only an actual "python .../src/evals/run.py" process, and drop the
+# current shell, its parent, and any scripts/run.sh process, so a shell that
+# merely mentions the string in its own command line does not show up here.
+running="$(pgrep -fl 'python.*src/evals/run\.py' 2>/dev/null \
+  | awk -v me="$$" -v parent="$PPID" '$1 != me && $1 != parent' \
+  | grep -v 'scripts/run.sh')"
 if [ -n "$running" ]; then
   printf '%s\n' "$running" | sed 's/^/  /'
 else

@@ -455,7 +455,7 @@ table.et { border-collapse: collapse; width: 100%; font-size: 14px; }
           <thead><tr><th>Stage</th><th>What runs</th><th>Configs</th><th>Trials</th><th>What you learn</th></tr></thead>
           <tbody>
             <tr><td>1. Pilot</td><td>One baseline configuration: <code>py.files-bash.docker.python.qwen3-8b.no-think</code></td><td class="num">1</td><td class="num">30</td><td>The real time and tokens per trial. Bugs in the eval harness.</td></tr>
-            <tr><td>2. One axis at a time</td><td>Start from the baseline. Change one axis to each of its other values.</td><td class="num">10</td><td class="num">300</td><td>The effect of each axis, from the baseline only.</td></tr>
+            <tr><td>2. One axis at a time</td><td>Start from the baseline. Change one axis to each of its other values.</td><td class="num">10</td><td class="num">300</td><td>The effect of each axis, from the baseline only. Done 2026-09-26, see docs/pilot.md.</td></tr>
             <tr><td>3. Full grid</td><td>All configurations</td><td class="num">162</td><td class="num">4,860</td><td>Interactions. For example: bash helps in the Python codebase but not in the Rust codebase. Stage 2 cannot show this.</td></tr>
           </tbody>
         </table>
@@ -656,7 +656,7 @@ table.et { border-collapse: collapse; width: 100%; font-size: 14px; }
         </table>
       </div>
       <p class="note">Six commits, one per wave. One push after wave 6. Twelve agent runs, never more than four at once.</p>
-      <p class="note"><b>Status:</b> waves 0 to 6 are done (2026-09-24). Pilot on the baseline: pass@1 0.10 over 30 trials. Wave 6 harness check: the baseline with each of the three harnesses on tasks 01 and 07, 6 of 6 trials valid, the same first-call prompt tokens for all three. Stage 2 smoke: the 10 configurations on tasks 01 and 07, 20 of 20 trials valid, 10 passed, 0 infra errors, no leftover container or sandbox. Limits are 20 turns and 300 s. The spec is frozen at version 1. Isolation switch 2026-09-25: baseline env <code>docker</code>, <code>local</code> with a bash tool set blocked; run contract in <code>experiments.yaml</code> and <code>scripts/</code>. Next: the stage 2 measurement, 300 trials, about 6 to 10 hours.</p>
+      <p class="note"><b>Status:</b> waves 0 to 6 are done (2026-09-24). Pilot on the baseline: pass@1 0.10 over 30 trials. Wave 6 harness check: the baseline with each of the three harnesses on tasks 01 and 07, 6 of 6 trials valid, the same first-call prompt tokens for all three. Stage 2 smoke: the 10 configurations on tasks 01 and 07, 20 of 20 trials valid, 10 passed, 0 infra errors, no leftover container or sandbox. Limits are 20 turns and 300 s. The spec is frozen at version 1. Isolation switch 2026-09-25: baseline env <code>docker</code>, <code>local</code> with a bash tool set blocked; run contract in <code>experiments.yaml</code> and <code>scripts/</code>. Stage 2 done 2026-09-26: 270 of 270 trials valid, 0 infra errors; baseline pass@1 0.267, <code>files</code>-only highest at 0.433 (see <code>docs/pilot.md</code>). The lever 1 (<code>tool_errors</code>), lever 2 (<code>auto_check</code>), and Harbor adapter builds are merged into <code>main</code>. Next: the lever runs, on GO.</p>
 
       <h3 class="sub-h">The model rule</h3>
       <ul class="notes">

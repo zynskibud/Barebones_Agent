@@ -100,15 +100,19 @@ RESULTS_DIR="$REPO_ROOT/${RESULTS:-runs/$EXPERIMENT_ID}"
 mkdir -p "$RESULTS_DIR"
 LOG="$RESULTS_DIR/run.log"
 
+# nice -n 10 wraps the whole command line: the harness and eval processes.
+# Ollama is a separate daemon and stays at normal priority, untouched.
+NICE_COMMAND="nice -n 10 $COMMAND"
+
 if [ "$DRY_RUN" -eq 1 ]; then
   echo "[dry run] lock acquired: $LOCK_DIR"
-  echo "[dry run] would append to $LOG and run: $COMMAND"
+  echo "[dry run] would append to $LOG and run: $NICE_COMMAND"
   echo "[dry run] releasing the lock now"
   exit 0
 fi
 
-echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) start $EXPERIMENT_ID: $COMMAND" >> "$LOG"
-( cd "$REPO_ROOT" && eval "$COMMAND" )
+echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) start $EXPERIMENT_ID: $NICE_COMMAND" >> "$LOG"
+( cd "$REPO_ROOT" && eval "$NICE_COMMAND" )
 COMMAND_EXIT=$?
 echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) end $EXPERIMENT_ID exit=$COMMAND_EXIT" >> "$LOG"
 

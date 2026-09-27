@@ -298,3 +298,37 @@ With thinking off, v1 mostly runs out of turns (17 of 30). v2 mostly stops on it
 - Thinking on raises pass@1 further, but costs about 4 to 5 times the seconds per trial and turns `max_seconds` into the main stop reason. v1-think (0.433) already beats v2-nothink (0.367), and the partial v2-think cell (0.423) is close to v1-think, not clearly above it. So the prompt change and thinking mode do not stack: most of the value with thinking on comes from thinking itself, not from the prompt. The full v2-think rerun in `docker` confirmed it: 0.333, below v1-think (0.433) and below v2-nothink (0.367). Per task it solved 01 and 06 three times each, 09 twice, 04 and 07 once, and 02, 03, 05, 08, 10 never.
 
 **Conclusion of Experiment 1.** The two prompt sentences and thinking mode each fix the blind-edit habit, and they do not add up. The best cell by cost is prompt v2 with thinking off: pass@1 0.367 at 45 s per trial and 122 s per solved task. Thinking on reaches a few more tasks at least once (pass@3 0.70 with v1) but costs 4 to 5 times the time and hits the 300 s limit in 14 of 30 trials in both prompt versions, so its numbers are a lower bound under this limit. The working setting for stage 2 and the lever experiments is prompt v2 with thinking off; thinking stays an axis.
+
+## Stage 2 results
+
+Date: 2026-09-26, 20:48 to 23:00 UTC. Same machine, same Ollama, same model digest as Experiment 1. Stage 2 holds five axes at the baseline and changes one at a time: tools, env, codebase, harness, and thinking. Prompt is v2 (`config/system_prompt_v2.txt`) throughout, and the baseline row is `env: docker`. All 270 of 270 trials graded, 0 infra errors. Numbers are from `uv run python src/evals/report.py --runs runs/stage2-v2`.
+
+| Config | pass@1 | pass@k | pass^k | s/solved | Turns | Seconds per trial |
+|---|---|---|---|---|---|---|
+| `py.files-bash.docker.python.qwen3-8b.no-think` (baseline) | 0.267 | 0.400 | 0.100 | 226.0 | 5.8 | 60.3 |
+| `py.files.docker.python.qwen3-8b.no-think` | 0.433 | 0.600 | 0.200 | 106.3 | 5.9 | 46.0 |
+| `py.bash.docker.python.qwen3-8b.no-think` | 0.167 | 0.200 | 0.100 | 287.2 | 4.4 | 47.9 |
+| `py.files-bash.docker.python.qwen3-8b.think` | 0.333 | 0.600 | 0.100 | 779.6 | 2.6 | 259.9 |
+| `py.files-bash.docker.typescript.qwen3-8b.no-think` | 0.400 | 0.500 | 0.300 | 100.2 | 4.3 | 40.1 |
+| `py.files-bash.docker.rust.qwen3-8b.no-think` | 0.400 | 0.500 | 0.300 | 281.3 | 6.5 | 112.5 |
+| `py.files-bash.cloud.python.qwen3-8b.no-think` | 0.267 | 0.400 | 0.100 | 193.3 | 5.2 | 51.6 |
+| `ts.files-bash.docker.python.qwen3-8b.no-think` | 0.300 | 0.500 | 0.100 | 149.9 | 5.8 | 45.0 |
+| `go.files-bash.docker.python.qwen3-8b.no-think` | 0.267 | 0.400 | 0.200 | 202.2 | 5.3 | 53.9 |
+
+The tenth stage 2 configuration, `local` with `files-bash`, stays blocked: `local` runs only with the `files` tool set (`docs/harness-spec.md`, section 15, item h).
+
+### Axis effects against the baseline (pass@1 0.267)
+
+Each reading treats a pass@1 gap under about 0.1 as noise, since each cell is 30 trials.
+
+- Tools: `files` alone scores 0.433, well above the baseline; `bash` alone scores 0.167, well below it. Dropping `bash` and keeping only `files` finds more of the passing tasks; adding `bash` back costs pass rate rather than adding it.
+- Thinking: thinking on scores 0.333, a small gain over 0.267, at 260 s per trial against 60 s off. The gain is inside noise range on its own and comes at four times the time.
+- Codebase: `typescript` and `rust` both score 0.400, above the baseline `python` row. The gap is outside the noise range for both, so the Python codebase looks harder for this model than the other two, not easier.
+- Env: `cloud` scores 0.267, the same as the `docker` baseline. The env swap changes nothing here.
+- Harness: the `ts` harness scores 0.300 and the `go` harness scores 0.267, both within noise of the `py` harness baseline (0.267). The three harnesses agree.
+
+The `docker` baseline here (0.267) sits below the Experiment 1 `local` cell for the same setting (0.367, prompt v2, thinking off). This gap is either noise or a real effect of the `docker` env, and it is an open question (see `docs/OPEN-QUESTIONS.md`).
+
+### Contention audit
+
+The coordinator reported a CPU contention window on this machine starting at 21:50 local time, inside the stage 2 run. Trials that hit `max_seconds` split 5 of 67 (7%) inside the window against 28 of 203 (14%) outside it, so the window shows fewer timeouts, not more. All five inside-window timeouts are task 09, in five different configurations (`go` trial-2 and trial-3, `cloud` trial-1 and trial-2, `ts` trial-2); task 09 hits the `max_seconds` limit in every configuration in this run, contention window or not. The default taken is no rerun: task 09's limit hits do not track the contention window, so contention is not the cause here.

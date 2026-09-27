@@ -12,9 +12,12 @@ set -u
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 AI_ENGINEERING_ROOT="$(cd "$REPO_ROOT/.." && pwd)"
+# heavy.lock is the old name for gpu.lock (see .coord/PROTOCOL.md). Both are
+# reported below, since a script still using the old name is fine for now.
 LOCK_DIR="$AI_ENGINEERING_ROOT/.coord/heavy.lock"
+GPU_LOCK_DIR="$AI_ENGINEERING_ROOT/.coord/gpu.lock"
+TIMING_LOCK_DIR="$AI_ENGINEERING_ROOT/.coord/timing.lock"
 DISK_FAIL_GB=15
-LOAD_WARN=2
 HARD_FAIL=0
 
 ok()   { printf 'OK    %s\n' "$1"; }
@@ -110,21 +113,28 @@ else
   ok "disk free ${disk_avail_gb:-unknown} GB"
 fi
 
-# Load average. A high load slows every model call; it is a warning, not a
-# reason to stop.
-load1="$(uptime | sed -E 's/.*load averages?: *//' | awk '{print $1}')"
-if [ -n "$load1" ] && awk -v l="$load1" -v w="$LOAD_WARN" 'BEGIN{exit !(l>w)}'; then
-  warn "load average ${load1} (over ${LOAD_WARN})"
+# TIMING jobs need the machine alone. This is a hard stop, not a warning:
+# no local run starts while another session holds timing.lock.
+if [ -d "$TIMING_LOCK_DIR" ]; then
+  fail "timing.lock is held: no local runs"
 else
-  ok "load average ${load1:-unknown}"
+  ok "timing.lock free"
 fi
 
-# The coordinator's heavy-job lock.
+# The coordinator's heavy-job lock (the old name for gpu.lock).
 if [ -d "$LOCK_DIR" ]; then
   owner="$(cat "$LOCK_DIR/owner" 2>/dev/null || echo "(no owner file)")"
-  info "coordinator lock: HELD by: $owner"
+  info "coordinator lock (heavy.lock): HELD by: $owner"
 else
-  info "coordinator lock: free"
+  info "coordinator lock (heavy.lock): free"
+fi
+
+# The coordinator's gpu-job lock.
+if [ -d "$GPU_LOCK_DIR" ]; then
+  owner="$(cat "$GPU_LOCK_DIR/owner" 2>/dev/null || echo "(no owner file)")"
+  info "coordinator lock (gpu.lock): HELD by: $owner"
+else
+  info "coordinator lock (gpu.lock): free"
 fi
 
 # Anything already running that a new run should know about.
@@ -135,7 +145,14 @@ else
   ok "no running barebones- containers"
 fi
 
-running_runpy="$(pgrep -fl "src/evals/run.py" 2>/dev/null)"
+# Match only an actual "python .../src/evals/run.py" process, and drop the
+# current shell, its parent, and any scripts/run.sh process (which launches
+# this preflight check but never matches the pattern itself). Without this,
+# a shell whose own command line merely mentions "src/evals/run.py" (for
+# example this preflight run, started from scripts/run.sh) can false-match.
+running_runpy="$(pgrep -fl 'python.*src/evals/run\.py' 2>/dev/null \
+  | awk -v me="$$" -v parent="$PPID" '$1 != me && $1 != parent' \
+  | grep -v 'scripts/run.sh')"
 if [ -n "$running_runpy" ]; then
   warn "src/evals/run.py already running: $(printf '%s' "$running_runpy" | tr '\n' '; ')"
 else

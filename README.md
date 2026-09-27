@@ -216,8 +216,10 @@ The evals have three stages. Stage 1 is a pilot on the baseline. Stage 2 changes
   - Wave 4: integration. The Python harness ran a smoke run over the 3 envs × 3 codebases. The table is in `docs/pilot.md`, section "After the pilot". The spec is frozen as version 1.
   - Wave 5: the TypeScript and Go harnesses. Both match the Python harness byte for byte on the tool JSON, the prompt, and the request bodies.
   - Wave 6: integration. Harness check: the baseline with each of the three harnesses on tasks 01 and 07, 6 of 6 trials valid, the same first-call prompt tokens (527) for all three. Stage 2 smoke: the 10 stage 2 configurations on tasks 01 and 07, 20 of 20 trials valid, 10 passed, 0 infra errors, no leftover container or sandbox. Both tables are in `docs/pilot.md`, section "After wave 6". The spec gained a clarifications section (15), still version 1.
-  - Experiment 1 (prompt × thinking, 4 × 30 trials) ran on `local`. Three cells are done: v1-nothink, v2-nothink, v1-think. The fourth cell, v2-think, stopped at 26 of 30 trials and needs a full rerun. See `docs/pilot.md`, section "Experiment 1 results".
-  - Next: the v2-think rerun in `docker` (`runs/exp1/v2-think-docker`), then the stage 2 measurement. See `experiments.yaml`.
+  - Experiment 1 (prompt × thinking, 4 × 30 trials) is done. The working setting is prompt v2 with thinking off. See `docs/pilot.md`, section "Experiment 1 results".
+  - Stage 2 (one axis at a time, 9 configurations × 30 trials, prompt v2, `docker` baseline) is done (2026-09-26): 270 of 270 trials valid, 0 infra errors. See `docs/pilot.md`, section "Stage 2 results".
+  - The lever 1 (`tool_errors`), lever 2 (`auto_check`), and Harbor adapter (`env: harbor`) builds are merged into `main`. See `docs/harness-spec.md`, section 15, items (i) and (j), and `docs/harbor.md`.
+  - Next: the lever runs (`lever-1-tool-errors`, `lever-2-auto-tests`), then the Harbor smoke, on GO. See `experiments.yaml`.
 - Two decisions after the pilot. Each one is reversible with one line.
   - The limits are 20 turns and 300 seconds. The pilot used 40 and 600. No passing pilot trial used more than 4 turns, and the failed loops burned 40 turns and up to 600 seconds. To go back, set `max_turns: 40` and `max_seconds: 600` in `config/baseline.yaml` and in the `limits` of every `task.yaml`.
   - Every Python task has an empty `conftest.py` in `repo/` and `solution/`, so a bare `pytest` finds the module under test, as `npm test` and `cargo test` find theirs. To go back, delete these 20 files.

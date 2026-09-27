@@ -37,14 +37,14 @@
   result: "pass@1 0.333, pass@3 0.500, pass^3 0.200, 208 s per trial, 14 of 30 hit max_seconds; ended 2026-09-25 19:18"
 
 - id: stage2-v2-docker
-  priority: 2
-  status: ready
+  priority: 0
+  status: done
   command: >-
     caffeinate -i uv run python src/evals/run.py
     --runs runs/stage2-v2 --stage 2
     --set prompt=config/system_prompt_v2.txt
   trials: 270
-  est_hours: 6
+  est_hours: 2.2
   needs:
     ollama: qwen3:8b
     docker: yes
@@ -57,9 +57,16 @@
     the run.py guard, so 9 run (8 no-think at 45 to 140 s, 1 think at about
     210 s) x 30 trials = 270. One configuration is env: cloud, about 30
     trials x 100 s, about $0.11 of E2B time.
+  result: >-
+    270 of 270 trials valid, 0 infra errors; ran 2026-09-26 20:48 to 23:00
+    UTC. Baseline (py.files-bash.docker.python.qwen3-8b.no-think) pass@1
+    0.267. files-only 0.433 (highest), bash-only 0.167 (lowest). typescript
+    and rust codebases both 0.400. cloud env 0.267, ts harness 0.300, go
+    harness 0.267 (all within noise of the baseline). think 0.333 at 260 s
+    per trial. See docs/pilot.md, "Stage 2 results".
 
 - id: lever-1-tool-errors
-  priority: 3
+  priority: 1
   status: ready
   command: >-
     caffeinate -i uv run python src/evals/run.py
@@ -80,7 +87,7 @@
     without tool_errors set (plain, today's behavior).
 
 - id: lever-2-auto-tests
-  priority: 4
+  priority: 2
   status: ready
   command: >-
     caffeinate -i uv run python src/evals/run.py
@@ -104,7 +111,7 @@
     runs/stage2-v2) to see the effect of the auto_check feedback loop.
 
 - id: harbor-terminal-bench-2.1-subset
-  priority: 5
+  priority: 3
   status: blocked-on coordinator GO and a 20-task subset list
   command: >-
     caffeinate -i env PYTHONPATH=. HARBOR_SET=prompt=config/system_prompt_v2.txt

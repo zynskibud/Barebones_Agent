@@ -71,4 +71,6 @@ Results go to `runs/<config id>/<task>/<trial>/`. Each trial folder holds `trans
 - Stop and ask a human only for: disk under 15 GB, money over $5, or a failed isolation check.
 - Subagents: Sonnet 5 by default, Haiku 4.5 for mechanical work, Opus 5.5 for hard design or debugging. Never Fable 5.1. At most 8 subagents.
 - Keep the lid open and the Mac on power for a run. Wrap every run in `caffeinate -i`.
+- At most one work container at a time: trials run one after another, never in parallel.
+- Inspect only your own containers and processes; never other sessions' load or processes.
 - Read `docs/handoff.md` first.
