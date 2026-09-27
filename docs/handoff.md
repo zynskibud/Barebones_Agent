@@ -29,6 +29,15 @@ Experiment 1 is complete. The prompt and thinking each fix the blind-edit habit 
 
 Stage 2 (9 configurations, one axis at a time, prompt v2, docker baseline), 30 trials each, ran 2026-09-26: 270 of 270 trials valid, 0 infra errors. Baseline (`py.files-bash.docker.python.qwen3-8b.no-think`) pass@1 0.267; `files`-only scores highest (0.433), `bash`-only lowest (0.167); `typescript` and `rust` codebases both score 0.400, above the `python` baseline; `cloud` env and the `ts`/`go` harnesses match the baseline within noise; thinking on scores 0.333 at 260 s per trial. See `docs/pilot.md`, section "Stage 2 results", for the full table, the axis effects, and the contention audit.
 
+Two levers against the stage 2 baseline, 30 trials each, ran 2026-09-27: 0 infra errors on either.
+
+| Lever | pass@1 | pass^3 | s / trial | Note |
+|---|---|---|---|---|
+| Lever 1: `tool_errors=rich` | 0.267 -> 0.200 | 0.100 -> 0.000 | 60.3 -> 40.5 | Removes the repeat loop; the model then makes one wrong edit and stops. No gain. |
+| Lever 2: `auto_check` (harness runs pytest after each edit) | 0.267 -> 0.400 | 0.100 -> 0.300 | 60.3 -> 83.3 | First lever to raise both the score and the reliability. +0.133 is at the edge of 30-trial noise. |
+
+See `docs/pilot.md`, section "Lever experiments", for the per-task table and both readings.
+
 ## Decisions and their dates
 
 | Date | Decision | Why |
@@ -72,9 +81,11 @@ Read `.coord/PROTOCOL.md` before any Ollama, Docker-heavy, or E2B run. Take the 
 ## What is waiting on whom
 
 - Experiment 1 ended on 2026-09-25 at 19:18. Stage 2 ended 2026-09-26 at 23:00 UTC, 270 of 270 trials valid, 0 infra errors. Both locks are released.
-- Next GO candidates, in priority order: `lever-1-tool-errors` (about 0.5 h), `lever-2-auto-tests` (about 0.6 h), then the Harbor smoke (`harbor-terminal-bench-2.1-subset`).
+- Lever 1 and lever 2 both ended 2026-09-27, 30/30 trials each, 0 infra errors. Both locks are released.
+- Next GO candidates, in priority order: `lever-2-confirm` (about 0.75 h, a second 30-trial sample of the `auto_check` setting), `lever-3-files-autocheck` (about 0.75 h, the `files` tool set plus `auto_check`), then the Harbor smoke (`harbor-terminal-bench-2.1-subset`).
 - The lever 1 (`tool_errors`), lever 2 (`auto_check`), and Harbor adapter (`env: harbor`) builds are merged into `main`. `tool_errors` picks the `edit_file` error format (`plain` or `rich`, Python harness only). `auto_check` runs a shell command after a successful `edit_file` and appends its output (Python harness only). Both keys default to null/absent, byte-identical to today's behavior. See `docs/harness-spec.md`, section 15, items (i) and (j), and `docs/harbor.md`.
-- `docs/OPEN-QUESTIONS.md` lists the decisions taken by default so far (the partial cell, the stage 2 prompt version, the thinking-mode time limit, the local/bash grid question, the E2B spending approval, the contention audit, the docker/local baseline gap, and the `files`-only finding). None of them block a run; the coordinator can revisit any of them at any time.
+- To read a finished lever run: `uv run python src/evals/report.py --compare <baseline-dir> <experiment-dir>` for the per-task pass table and the pass@1/pass^k/seconds/turns summary, and `uv run python src/evals/analyze.py <experiment-dir>` for stop reasons, tool calls, and failure patterns (repeat loops, claimed-done-but-failed).
+- `docs/OPEN-QUESTIONS.md` lists the decisions taken by default so far (the partial cell, the stage 2 prompt version, the thinking-mode time limit, the local/bash grid question, the E2B spending approval, the contention audit, the docker/local baseline gap, the `files`-only finding, and the two lever results). None of them block a run; the coordinator can revisit any of them at any time.
 
 ## How to start and resume a run
 

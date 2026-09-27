@@ -332,3 +332,22 @@ The `docker` baseline here (0.267) sits below the Experiment 1 `local` cell for 
 ### Contention audit
 
 The coordinator reported a CPU contention window on this machine starting at 21:50 local time, inside the stage 2 run. Trials that hit `max_seconds` split 5 of 67 (7%) inside the window against 28 of 203 (14%) outside it, so the window shows fewer timeouts, not more. All five inside-window timeouts are task 09, in five different configurations (`go` trial-2 and trial-3, `cloud` trial-1 and trial-2, `ts` trial-2); task 09 hits the `max_seconds` limit in every configuration in this run, contention window or not. The default taken is no rerun: task 09's limit hits do not track the contention window, so contention is not the cause here.
+
+## Lever experiments
+
+Date: 2026-09-27. Two levers, each tested against the stage 2 baseline row (`py.files-bash.docker.python.qwen3-8b.no-think`, prompt v2), 30 trials each, 0 infra errors. Lever 1 (`tool_errors=rich`) gives the model a fuller error message when `edit_file` fails, instead of the plain one-line error. Lever 2 (`auto_check="python -m pytest -q tests"`) has the harness run the test command itself after every successful edit and appends the output to the transcript, so the model sees a pass or fail without calling `bash`. Numbers are from `uv run python src/evals/report.py --compare runs/stage2-v2 runs/lever1-rich` (and `runs/lever2-autocheck`) and `uv run python src/evals/analyze.py runs/lever1-rich` (and `runs/lever2-autocheck`).
+
+| Configuration | pass@1 | pass^3 | s / trial | turns | repeat loops | claimed done, failed |
+|---|---|---|---|---|---|---|
+| Baseline (no lever) | 0.267 | 0.100 | 60.3 | 5.8 | 6 | 16 |
+| Lever 1: `tool_errors=rich` | 0.200 | 0.000 | 40.5 | 4.9 | 2 | 22 |
+| Lever 2: `auto_check` | 0.400 | 0.300 | 83.3 | 6.8 | 6 | 13 |
+
+Per-task changes for lever 2, against the baseline: task 04 went from 0/3 to 3/3. Tasks 03 and 09 both went from 2/3 to 3/3. Tasks 01 and 05 each dropped by one trial (01: 3/3 to 2/3; 05: 1/3 to 0/3). Task 06 also moved, from 0/3 to 1/3.
+
+Readings:
+
+- Lever 1 removes the repeat loop (6 down to 2), but the model then makes one wrong edit and stops. The richer error message does not help it find the right fix. No gain: pass@1 drops from 0.267 to 0.200, and pass^3 drops to 0.000.
+- Lever 2 is the first lever that raises both the score and the reliability. pass@1 rises from 0.267 to 0.400 and pass^3 rises from 0.100 to 0.300. The gain, +0.133, sits at the edge of what 30 trials can tell apart from noise, so it is promising, not proven.
+
+Next: a confirmation run of lever 2, and the combination `files`-only tools with `auto_check`.

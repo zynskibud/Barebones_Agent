@@ -66,8 +66,8 @@
     per trial. See docs/pilot.md, "Stage 2 results".
 
 - id: lever-1-tool-errors
-  priority: 1
-  status: ready
+  priority: 0
+  status: done
   command: >-
     caffeinate -i uv run python src/evals/run.py
     --runs runs/lever1-rich
@@ -75,7 +75,7 @@
     --set prompt=config/system_prompt_v2.txt
     --set tool_errors=rich
   trials: 30
-  est_hours: 0.5
+  est_hours: 0.35
   needs:
     ollama: qwen3:8b
     docker: yes
@@ -85,10 +85,16 @@
   note: >-
     Compare against the stage 2 baseline row for the same configuration
     without tool_errors set (plain, today's behavior).
+  result: >-
+    pass@1 0.267 -> 0.200, pass^3 0.100 -> 0.000, seconds 60.3 -> 40.5,
+    repeat loops 6 -> 2, claimed-done-but-failed 16 -> 22; 30/30 trials,
+    0 infra errors; ran 2026-09-27. No gain: the richer error removes the
+    repeat loop and the model then makes one wrong edit and stops. See
+    docs/pilot.md, "Lever experiments".
 
 - id: lever-2-auto-tests
-  priority: 2
-  status: ready
+  priority: 0
+  status: done
   command: >-
     caffeinate -i uv run python src/evals/run.py
     --runs runs/lever2-autocheck
@@ -96,7 +102,7 @@
     --set prompt=config/system_prompt_v2.txt
     --set "auto_check=python -m pytest -q tests"
   trials: 30
-  est_hours: 0.6
+  est_hours: 0.75
   needs:
     ollama: qwen3:8b
     docker: yes
@@ -109,6 +115,58 @@
     no auto_check feedback on those two tasks. Compare against the stage 2
     baseline row (py.files-bash.docker.python.qwen3-8b.no-think in
     runs/stage2-v2) to see the effect of the auto_check feedback loop.
+  result: >-
+    pass@1 0.267 -> 0.400, pass^3 0.100 -> 0.300, seconds 60.3 -> 83.3,
+    turns 5.8 -> 6.8, claimed-done-but-failed 16 -> 13; 30/30 trials, 0 infra
+    errors; ran 2026-09-27. The first lever that raises both the score and
+    the reliability; +0.133 sits at the edge of 30-trial noise. See
+    docs/pilot.md, "Lever experiments".
+
+- id: lever-2-confirm
+  priority: 1
+  status: ready
+  command: >-
+    caffeinate -i uv run python src/evals/run.py
+    --runs runs/lever2-autocheck-b
+    --config py.files-bash.docker.python.qwen3-8b.no-think
+    --set prompt=config/system_prompt_v2.txt
+    --set "auto_check=python -m pytest -q tests"
+  trials: 30
+  est_hours: 0.75
+  needs:
+    ollama: qwen3:8b
+    docker: yes
+    e2b: no
+  done_when: "30 result.json files with a non-null passed, under runs/lever2-autocheck-b/*/*/trial-*/"
+  results: runs/lever2-autocheck-b
+  note: >-
+    Same setting as lever-2-auto-tests, second sample, to check that the
+    +0.133 pass@1 gain is not 30-trial noise. Compare with
+    src/evals/report.py --compare runs/stage2-v2 runs/lever2-autocheck-b,
+    and pool the two samples (runs/lever2-autocheck and
+    runs/lever2-autocheck-b) for a 60-trial read.
+
+- id: lever-3-files-autocheck
+  priority: 2
+  status: ready
+  command: >-
+    caffeinate -i uv run python src/evals/run.py
+    --runs runs/lever3-files-autocheck
+    --config py.files.docker.python.qwen3-8b.no-think
+    --set prompt=config/system_prompt_v2.txt
+    --set "auto_check=python -m pytest -q tests"
+  trials: 30
+  est_hours: 0.75
+  needs:
+    ollama: qwen3:8b
+    docker: yes
+    e2b: no
+  done_when: "30 result.json files with a non-null passed, under runs/lever3-files-autocheck/*/*/trial-*/"
+  results: runs/lever3-files-autocheck
+  note: >-
+    The files tool set plus auto_check. Compare with the stage 2
+    py.files.docker.python.qwen3-8b.no-think row (pass@1 0.433) to see
+    whether dropping bash and adding auto_check add up.
 
 - id: harbor-terminal-bench-2.1-subset
   priority: 3

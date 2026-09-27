@@ -20,6 +20,7 @@ import harbor.agents.base  # noqa: E402,F401
 
 sys.path[:] = saved
 sys.path.insert(0, str(REPO_ROOT))
+sys.path.insert(0, str(REPO_ROOT / "src" / "harness" / "python"))
 sys.path.insert(0, str(REPO_ROOT / "src" / "harness" / "python" / "tests"))
 
 import build  # noqa: E402

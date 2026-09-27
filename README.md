@@ -221,7 +221,8 @@ The evals have three stages. Stage 1 is a pilot on the baseline. Stage 2 changes
   - Experiment 1 (prompt × thinking, 4 × 30 trials) is done. The working setting is prompt v2 with thinking off. See `docs/pilot.md`, section "Experiment 1 results".
   - Stage 2 (one axis at a time, 9 configurations × 30 trials, prompt v2, `docker` baseline) is done (2026-09-26): 270 of 270 trials valid, 0 infra errors. See `docs/pilot.md`, section "Stage 2 results".
   - The lever 1 (`tool_errors`), lever 2 (`auto_check`), and Harbor adapter (`env: harbor`) builds are merged into `main`. See `docs/harness-spec.md`, section 15, items (i) and (j), and `docs/harbor.md`.
-  - Next: the lever runs (`lever-1-tool-errors`, `lever-2-auto-tests`), then the Harbor smoke, on GO. See `experiments.yaml`.
+  - The lever runs are done (2026-09-27): lever 1 (`tool_errors=rich`) gave no gain, pass@1 0.267 to 0.200. Lever 2 (`auto_check`) raised pass@1 0.267 to 0.400 and pass^3 0.100 to 0.300, promising but not proven at 30 trials. See `docs/pilot.md`, section "Lever experiments".
+  - Next: a confirmation run of lever 2 (`lever-2-confirm`), then the `files` tool set plus `auto_check` (`lever-3-files-autocheck`), then the Harbor smoke, on GO. See `experiments.yaml`.
 - Two decisions after the pilot. Each one is reversible with one line.
   - The limits are 20 turns and 300 seconds. The pilot used 40 and 600. No passing pilot trial used more than 4 turns, and the failed loops burned 40 turns and up to 600 seconds. To go back, set `max_turns: 40` and `max_seconds: 600` in `config/baseline.yaml` and in the `limits` of every `task.yaml`.
   - Every Python task has an empty `conftest.py` in `repo/` and `solution/`, so a bare `pytest` finds the module under test, as `npm test` and `cargo test` find theirs. To go back, delete these 20 files.
