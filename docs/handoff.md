@@ -50,6 +50,8 @@ Stage 2 (9 configurations, one axis at a time, prompt v2, docker baseline), 30 t
 | `scripts/preflight.sh` | Checks the machine before a run: lid, power, Ollama, Docker, the E2B key, toolchains, disk space, load, the coordinator lock, and any leftover containers or processes. Fails only on disk under 15 GB; everything else is a warning. |
 | `scripts/run.sh <experiment-id>` | Looks up the experiment in `experiments.yaml`, refuses unless it is `ready` (or `--force`), runs preflight, takes the coordinator's heavy lock, runs the command, always releases the lock, then prints the report. `--dry-run` does everything except the command. |
 | `scripts/status.sh` | Prints every experiment's status, trials done versus expected, its report line if done, the lock state, and any running containers or processes. |
+| `src/evals/report.py --compare <baseline-dir> <experiment-dir>` | Prints a per-task pass table and a pass@1/pass^k/seconds/turns summary, baseline against an experiment, for each configuration present in both folders. |
+| `src/evals/analyze.py <runs-dir>` | Prints stop reasons, tool call counts, bash and test-command use, and failure patterns (blind first edit, repeat loops, claimed-done-but-failed, limit hits) per configuration. |
 
 ## Resource facts
 

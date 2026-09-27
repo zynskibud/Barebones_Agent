@@ -496,6 +496,35 @@ table.et { border-collapse: collapse; width: 100%; font-size: 14px; }
 
     <div class="view">
       <div class="view-head">
+        <h2>Stage 2 results</h2>
+        <p>270 trials, prompt v2, <code>docker</code> baseline, run on 2026-09-26, 0 infra errors. Stage 2 holds five axes at the baseline and changes one axis at a time.</p>
+      </div>
+      <div class="twrap">
+        <table class="et">
+          <thead><tr><th>Configuration change from the baseline</th><th>pass@1</th><th>pass^3</th><th>s / trial</th><th>s / solved task</th></tr></thead>
+          <tbody>
+            <tr><td>Baseline (<code>py</code>, <code>files-bash</code>, <code>docker</code>, <code>python</code>, no-think)</td><td class="num">0.267</td><td class="num">0.100</td><td class="num">60.3</td><td class="num">226.0</td></tr>
+            <tr><td>Tools → <code>files</code> only</td><td class="num">0.433</td><td class="num">0.200</td><td class="num">46.0</td><td class="num">106.3</td></tr>
+            <tr><td>Tools → <code>bash</code> only</td><td class="num">0.167</td><td class="num">0.100</td><td class="num">47.9</td><td class="num">287.2</td></tr>
+            <tr><td>Thinking → on</td><td class="num">0.333</td><td class="num">0.100</td><td class="num">259.9</td><td class="num">779.6</td></tr>
+            <tr><td>Codebase → TypeScript</td><td class="num">0.400</td><td class="num">0.300</td><td class="num">40.1</td><td class="num">100.2</td></tr>
+            <tr><td>Codebase → Rust</td><td class="num">0.400</td><td class="num">0.300</td><td class="num">112.5</td><td class="num">281.3</td></tr>
+            <tr><td>Env → <code>cloud</code></td><td class="num">0.267</td><td class="num">0.100</td><td class="num">51.6</td><td class="num">193.3</td></tr>
+            <tr><td>Harness → TypeScript</td><td class="num">0.300</td><td class="num">0.100</td><td class="num">45.0</td><td class="num">149.9</td></tr>
+            <tr><td>Harness → Go</td><td class="num">0.267</td><td class="num">0.200</td><td class="num">53.9</td><td class="num">202.2</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <ul class="notes">
+        <li><b>The tool set effect.</b> <code>files</code> alone scores 0.433. <code>files-bash</code> scores 0.267. <code>bash</code> alone scores 0.167. The bash tool costs pass rate here. It does not add to it.</li>
+        <li><b>The three harnesses agree.</b> <code>py</code> scores 0.267, <code>ts</code> scores 0.300, <code>go</code> scores 0.267. The gaps sit inside noise for 30 trials per cell.</li>
+        <li><b>Open question: docker vs. local.</b> The <code>docker</code> baseline here scores 0.267. The same setting scored 0.367 on <code>local</code> in Experiment 1. The gap can be noise, or a real effect of the <code>docker</code> env. See <code>docs/OPEN-QUESTIONS.md</code>.</li>
+      </ul>
+      <p class="note">See <code>docs/pilot.md</code>, section "Stage 2 results", for the full write-up and the contention audit.</p>
+    </div>
+
+    <div class="view">
+      <div class="view-head">
         <h2>Public benchmarks, later</h2>
         <p>The 30 tasks in this repo are a small private suite. The goal after Experiment 1 and stage 2 is to run the same harness on public benchmarks, hit the published numbers for small models with harness engineering alone, and then try to beat them. The model stays Qwen3 8B. Only the harness changes.</p>
       </div>

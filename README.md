@@ -172,6 +172,8 @@ uv run python src/evals/run.py --stage 2     # one axis at a time: 10 configurat
 uv run python src/evals/run.py               # full grid: 162 configurations
 uv run python src/evals/run.py --dry-run     # print the configuration IDs and exit
 uv run python src/evals/report.py            # the table: pass@1, pass^k, time per solved task
+uv run python src/evals/report.py --compare runs/stage2-v2 runs/lever1-rich   # per-task deltas, baseline vs. an experiment
+uv run python src/evals/analyze.py runs/stage2-v2                             # stop reasons, tool calls, and failure patterns per configuration
 ```
 
 Run exact configurations. Repeat `--config` or separate the IDs with commas. `--runs` puts the results in another folder, so a check does not touch the eval results:
