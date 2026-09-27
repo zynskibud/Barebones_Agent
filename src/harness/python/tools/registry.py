@@ -11,7 +11,10 @@ from env.base import Env, EnvError
 
 MAX_RESULT_CHARS = 10_000
 
-Handler = Callable[[Env, dict, dict], str]
+# (env, messages, arguments, settings) -> the tool result text.
+# settings holds run-level choices that are not part of a tool call's own
+# arguments, for example tool_errors. A handler that needs none reads none.
+Handler = Callable[[Env, dict, dict, dict], str]
 
 
 def text(messages: dict, key: str, **values: object) -> str:
@@ -79,10 +82,18 @@ def truncate(messages: dict, result: str) -> str:
 class Tools:
     """The tool set for one run: the ordered definitions and the dispatch."""
 
-    def __init__(self, definitions: list[dict], handlers: dict[str, Handler], env: Env, messages: dict) -> None:
+    def __init__(
+        self,
+        definitions: list[dict],
+        handlers: dict[str, Handler],
+        env: Env,
+        messages: dict,
+        settings: dict | None = None,
+    ) -> None:
         self.definitions = definitions
         self.env = env
         self.messages = messages
+        self.settings = settings or {}
         self.by_name = {definition["function"]["name"]: definition for definition in definitions}
         self.handlers = {name: handlers[name] for name in self.by_name}
 
@@ -94,5 +105,5 @@ class Tools:
         problem = check_arguments(definition, arguments)
         if problem is not None:
             return text(self.messages, "errors.invalid_arguments", name=name, detail=problem), True
-        result = self.handlers[name](self.env, self.messages, arguments)
+        result = self.handlers[name](self.env, self.messages, arguments, self.settings)
         return truncate(self.messages, result), False

@@ -20,6 +20,8 @@ REPO_ROOT = Path(__file__).resolve().parents[3]
 CONFIG_DIR = REPO_ROOT / "config"
 # The system prompt file when the config has no prompt key, relative to the repo root.
 DEFAULT_PROMPT = "config/system_prompt.txt"
+# The tool_errors value when the config has no tool_errors key.
+DEFAULT_TOOL_ERRORS = "plain"
 
 ENVS = {"local": LocalEnv, "docker": DockerEnv, "cloud": CloudEnv}
 
@@ -51,7 +53,10 @@ def build_agent(config: dict, workdir: str) -> Agent:
     messages = json.loads((CONFIG_DIR / "messages.json").read_text(encoding="utf-8"))
     tools_file = json.loads((CONFIG_DIR / "tools.json").read_text(encoding="utf-8"))
     definitions = [tools_file["tools"][name] for name in tools_file["sets"][config["tools"]]]
-    tools = Tools(definitions, HANDLERS, env, messages)
+    tool_errors = config.get("tool_errors")
+    if tool_errors is None:
+        tool_errors = DEFAULT_TOOL_ERRORS
+    tools = Tools(definitions, HANDLERS, env, messages, {"tool_errors": tool_errors})
     model = Model(
         name=config["model"],
         think=config["think"],

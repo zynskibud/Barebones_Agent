@@ -16,5 +16,9 @@
     "created": "ok: created {path}"
   },
   "truncated": "[truncated: {n} characters omitted]",
-  "exit_code": "exit code: {n}"
+  "exit_code": "exit code: {n}",
+  "rich": {
+    "closest_matches": "closest matches (line: text):",
+    "matches_at_lines": "matches at lines:"
+  }
 }

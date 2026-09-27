@@ -53,6 +53,7 @@ export type Agent = {
 
 // Read the choices in config and build every part.
 export function buildAgent(config: Config, workdir: string): Agent {
+  refuseRichToolErrors(config);
   const envClass = ENVS.get(String(config.env));
   if (envClass === undefined) throw new Error(`unknown env: ${config.env}`);
   // Every env gets max_seconds. An env that needs no time limit ignores it.
@@ -88,6 +89,16 @@ export function buildAgent(config: Config, workdir: string): Agent {
     maxTurns: config.max_turns as number,
     maxSeconds: config.max_seconds as number,
   };
+}
+
+// The tool_errors setting picks the edit_file error format. This harness
+// implements only plain, the v1 behavior. rich is a Python-only experiment.
+function refuseRichToolErrors(config: Config): void {
+  const value = config.tool_errors;
+  if (value !== undefined && value !== null && value !== "plain") {
+    process.stderr.write("tool_errors: rich is not implemented in this harness\n");
+    process.exit(3);
+  }
 }
 
 // Return <harness>.<tools>.<env>.<codebase>.<model-id>.<think-id>.

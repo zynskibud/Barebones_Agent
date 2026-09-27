@@ -60,17 +60,24 @@
 
 - id: lever-1-tool-errors
   priority: 3
-  status: planned
-  command: null
-  trials: null
-  est_hours: null
+  status: ready
+  command: >-
+    caffeinate -i uv run python src/evals/run.py
+    --runs runs/lever1-rich
+    --config py.files-bash.docker.python.qwen3-8b.no-think
+    --set prompt=config/system_prompt_v2.txt
+    --set tool_errors=rich
+  trials: 30
+  est_hours: 0.5
   needs:
-    ollama: null
-    docker: null
-    e2b: null
-  done_when: null
-  results: null
-  note: "Needs a build first: a richer edit_file not-found error (for example, the nearest matching line)."
+    ollama: qwen3:8b
+    docker: yes
+    e2b: no
+  done_when: "30 result.json files with a non-null passed, under runs/lever1-rich/*/trial-*/"
+  results: runs/lever1-rich
+  note: >-
+    Compare against the stage 2 baseline row for the same configuration
+    without tool_errors set (plain, today's behavior).
 
 - id: lever-2-auto-tests
   priority: 4
