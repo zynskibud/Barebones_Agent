@@ -53,11 +53,27 @@ type agent struct {
 	maxSeconds   float64
 }
 
+// refuseRichToolErrors exits the process when the config asks for a tool_errors
+// mode other than plain. This harness implements only plain, the v1 behavior.
+// rich is a Python-only experiment.
+func refuseRichToolErrors(cfg *config) {
+	found, ok := cfg.get("tool_errors")
+	if !ok || found.isNull() {
+		return
+	}
+	if found.kind == stringValue && found.s == "plain" {
+		return
+	}
+	fmt.Fprintln(os.Stderr, "tool_errors: rich is not implemented in this harness")
+	os.Exit(3)
+}
+
 // buildAgent reads the choices in config and builds every part.
 func buildAgent(cfg *config, workdir string) (*agent, error) {
 	if found, ok := cfg.get("auto_check"); ok && !found.isNull() {
 		return nil, errors.New("auto_check is not implemented in this harness")
 	}
+	refuseRichToolErrors(cfg)
 	root, err := repoRoot()
 	if err != nil {
 		return nil, err

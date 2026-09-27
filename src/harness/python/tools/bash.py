@@ -10,8 +10,11 @@ from tools.registry import env_error, text
 TIMEOUT_SECONDS = 30
 
 
-def bash(env: Env, messages: dict, arguments: dict) -> str:
-    """Run the command. Return stdout, then stderr, then the exit code line."""
+def bash(env: Env, messages: dict, arguments: dict, settings: dict) -> str:
+    """Run the command. Return stdout, then stderr, then the exit code line.
+
+    settings is unused: bash has no rich mode.
+    """
     try:
         stdout, stderr, code = env.run(arguments["command"], TIMEOUT_SECONDS)
     except EnvError as error:

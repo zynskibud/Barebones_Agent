@@ -17,5 +17,9 @@
   },
   "truncated": "[truncated: {n} characters omitted]",
   "exit_code": "exit code: {n}",
-  "auto_check_label": "check: {command}"
+  "auto_check_label": "check: {command}",
+  "rich": {
+    "closest_matches": "closest matches (line: text):",
+    "matches_at_lines": "matches at lines:"
+  }
 }
