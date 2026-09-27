@@ -16,5 +16,6 @@
     "created": "ok: created {path}"
   },
   "truncated": "[truncated: {n} characters omitted]",
-  "exit_code": "exit code: {n}"
+  "exit_code": "exit code: {n}",
+  "auto_check_label": "check: {command}"
 }

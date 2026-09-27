@@ -55,6 +55,9 @@ type agent struct {
 
 // buildAgent reads the choices in config and builds every part.
 func buildAgent(cfg *config, workdir string) (*agent, error) {
+	if found, ok := cfg.get("auto_check"); ok && !found.isNull() {
+		return nil, errors.New("auto_check is not implemented in this harness")
+	}
 	root, err := repoRoot()
 	if err != nil {
 		return nil, err

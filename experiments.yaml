@@ -74,17 +74,27 @@
 
 - id: lever-2-auto-tests
   priority: 4
-  status: planned
-  command: null
-  trials: null
-  est_hours: null
+  status: ready
+  command: >-
+    caffeinate -i uv run python src/evals/run.py
+    --runs runs/lever2-autocheck
+    --config py.files-bash.docker.python.qwen3-8b.no-think
+    --set prompt=config/system_prompt_v2.txt
+    --set "auto_check=python -m pytest -q tests"
+  trials: 30
+  est_hours: 0.6
   needs:
-    ollama: null
-    docker: null
-    e2b: null
-  done_when: null
-  results: null
-  note: "Needs a build first: the harness runs the task tests after each edit_file call and returns the output."
+    ollama: qwen3:8b
+    docker: yes
+    e2b: no
+  done_when: "30 result.json files with a non-null passed, under runs/lever2-autocheck/*/*/trial-*/"
+  results: runs/lever2-autocheck
+  note: >-
+    Python tasks only. Tasks 08 and 10 have no visible tests, so the command
+    reports "no tests ran" with a non-zero exit; that is fine, it just means
+    no auto_check feedback on those two tasks. Compare against the stage 2
+    baseline row (py.files-bash.docker.python.qwen3-8b.no-think in
+    runs/stage2-v2) to see the effect of the auto_check feedback loop.
 
 - id: harbor-terminal-bench-2.1-subset
   priority: 5
