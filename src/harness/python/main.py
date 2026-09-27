@@ -145,13 +145,16 @@ def used_settings(agent: Agent, config: dict) -> dict:
     return used
 
 
-def write_result(path: str, config: dict, run: dict, used: dict, exit_code: int) -> None:
-    """Write result.json with exactly the keys in the spec."""
+def write_result(path: str, config: dict, run: dict, used: dict, exit_code: int, task: str | None = None) -> None:
+    """Write result.json with exactly the keys in the spec.
+
+    task defaults to the name of the task folder, two levels above result.json.
+    """
     result_path = Path(path)
     result_path.parent.mkdir(parents=True, exist_ok=True)
     result = {
         "config_id": config_id(config),
-        "task": result_path.parent.parent.name,
+        "task": task if task is not None else result_path.parent.parent.name,
         "trial": trial_number(result_path.parent.name),
         "stop_reason": run["stop_reason"],
         "turns": run["turns"],
