@@ -53,6 +53,9 @@ export type Agent = {
 
 // Read the choices in config and build every part.
 export function buildAgent(config: Config, workdir: string): Agent {
+  if (config.auto_check !== undefined && config.auto_check !== null) {
+    throw new Error("auto_check is not implemented in this harness");
+  }
   const envClass = ENVS.get(String(config.env));
   if (envClass === undefined) throw new Error(`unknown env: ${config.env}`);
   // Every env gets max_seconds. An env that needs no time limit ignores it.

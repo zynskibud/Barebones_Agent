@@ -219,6 +219,14 @@ def test_set_types_values_refuses_axes_and_reaches_every_config_file(fake_run, t
     assert yaml.safe_load((runs_dir / BASELINE_ID / "task-01-cart" / "config.yaml").read_text())["max_turns"] == 40
 
 
+def test_set_value_with_spaces_keeps_the_whole_command():
+    # partition("=") splits on the first "=" only, so a value with spaces (and no "="
+    # of its own) survives whole. This is the shape lever-2-auto-tests needs:
+    # --set "auto_check=python -m pytest -q tests".
+    args = run.parse_args(["--set", "auto_check=python -m pytest -q tests"])
+    assert args.overrides == {"auto_check": "python -m pytest -q tests"}
+
+
 def test_dry_run_prints_the_set_pairs_after_the_configurations(capsys):
     argv = ["--dry-run", "--config", BASELINE_ID, "--set", "prompt=config/system_prompt_v2.txt", "--set", "max_turns=1"]
     assert run.main(argv) == 0

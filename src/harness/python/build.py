@@ -4,6 +4,7 @@ build_agent(config) is the only place that reads the choices
 and builds the parts: model, tools, env, and loop.
 """
 
+import functools
 import json
 from dataclasses import dataclass
 from pathlib import Path
@@ -51,7 +52,12 @@ def build_agent(config: dict, workdir: str) -> Agent:
     messages = json.loads((CONFIG_DIR / "messages.json").read_text(encoding="utf-8"))
     tools_file = json.loads((CONFIG_DIR / "tools.json").read_text(encoding="utf-8"))
     definitions = [tools_file["tools"][name] for name in tools_file["sets"][config["tools"]]]
-    tools = Tools(definitions, HANDLERS, env, messages)
+    handlers = HANDLERS
+    auto_check = config.get("auto_check")
+    if auto_check is not None:
+        handlers = dict(HANDLERS)
+        handlers["edit_file"] = functools.partial(files.edit_file, auto_check=auto_check)
+    tools = Tools(definitions, handlers, env, messages)
     model = Model(
         name=config["model"],
         think=config["think"],
