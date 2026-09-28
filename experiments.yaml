@@ -222,10 +222,10 @@
     --n-concurrent 1
     --jobs-dir runs/harbor-tb21
     --job-name tb21-subset
-    -i adaptive-rejection-sampler -i build-pmars -i chess-best-move -i compile-compcert -i crack-7z-hash
-    -i dna-assembly -i feal-differential-cryptanalysis -i fix-code-vulnerability -i git-leak-recovery -i hf-model-inference
-    -i largest-eigenval -i make-doom-for-mips -i model-extraction-relu-logits -i multi-source-data-merger -i password-recovery
-    -i polyglot-rust-c -i pypi-server -i qemu-startup -i regex-log -i sanitize-git-repo
+    -i terminal-bench/adaptive-rejection-sampler -i terminal-bench/build-pmars -i terminal-bench/chess-best-move -i terminal-bench/compile-compcert -i terminal-bench/crack-7z-hash
+    -i terminal-bench/dna-assembly -i terminal-bench/feal-differential-cryptanalysis -i terminal-bench/fix-code-vulnerability -i terminal-bench/git-leak-recovery -i terminal-bench/hf-model-inference
+    -i terminal-bench/largest-eigenval -i terminal-bench/make-doom-for-mips -i terminal-bench/model-extraction-relu-logits -i terminal-bench/multi-source-data-merger -i terminal-bench/password-recovery
+    -i terminal-bench/polyglot-rust-c -i terminal-bench/pypi-server -i terminal-bench/qemu-startup -i terminal-bench/regex-log -i terminal-bench/sanitize-git-repo
   trials: 20 x 1
   est_hours: 4
   needs:
