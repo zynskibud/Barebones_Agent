@@ -168,8 +168,31 @@
     py.files.docker.python.qwen3-8b.no-think row (pass@1 0.433) to see
     whether dropping bash and adding auto_check add up.
 
-- id: harbor-terminal-bench-2.1-subset
+- id: harbor-smoke
   priority: 3
+  status: ready
+  command: >-
+    caffeinate -i env PYTHONPATH=. HARBOR_SET=prompt=config/system_prompt_v2.txt
+    uv run harbor run --dataset terminal-bench/terminal-bench-2-1
+    --agent src.evals.harbor.agent:BarebonesAgent --n-concurrent 1
+    --jobs-dir runs/harbor-smoke --job-name smoke -l 1
+  trials: 1
+  est_hours: 0.5
+  needs:
+    ollama: qwen3:8b
+    docker: yes
+    e2b: no
+  done_when: "one trial folder under runs/harbor-smoke with agent/result.json"
+  results: runs/harbor-smoke
+  note: >-
+    The first real Harbor run: one task from Terminal-Bench 2.1, chosen by
+    Harbor (-l 1). Its purpose is to find what breaks (dataset name, image
+    pull, bash and GNU timeout in the image, file ownership, the reward path).
+    The image pull is CPU-BULK. Read runs/harbor-smoke and docs/harbor.md
+    afterward and fix before the 20-task subset.
+
+- id: harbor-terminal-bench-2.1-subset
+  priority: 4
   status: blocked-on coordinator GO and a 20-task subset list
   command: >-
     caffeinate -i env PYTHONPATH=. HARBOR_SET=prompt=config/system_prompt_v2.txt
@@ -201,7 +224,7 @@
     (6) the container images must have bash and GNU timeout.
 
 - id: full-grid-v2
-  priority: 6
+  priority: 5
   status: planned
   command: >-
     caffeinate -i uv run python src/evals/run.py

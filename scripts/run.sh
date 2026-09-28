@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Run one experiment from experiments.yaml, under the coordinator's heavy lock.
+# Run one experiment from experiments.yaml, under the coordinator's GPU lock.
 #
 # Usage: scripts/run.sh [--force] [--dry-run] <experiment-id>
 #
@@ -18,7 +18,8 @@ set -u
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 AI_ENGINEERING_ROOT="$(cd "$REPO_ROOT/.." && pwd)"
-LOCK_DIR="$AI_ENGINEERING_ROOT/.coord/heavy.lock"
+LOCK_DIR="$AI_ENGINEERING_ROOT/.coord/gpu.lock"
+LEGACY_LOCK_DIR="$AI_ENGINEERING_ROOT/.coord/heavy.lock"
 LOCK_OWNER_FILE="$LOCK_DIR/owner"
 EXPERIMENTS_FILE="$REPO_ROOT/experiments.yaml"
 
@@ -83,9 +84,15 @@ if ! "$REPO_ROOT/scripts/preflight.sh"; then
   exit 1
 fi
 
-# Acquire the coordinator's heavy lock, exactly as .coord/PROTOCOL.md says.
+# Acquire the coordinator's GPU lock, exactly as .coord/PROTOCOL.md says.
+# heavy.lock is the old name; a run refuses to start while either is held.
+if [ -d "$LEGACY_LOCK_DIR" ]; then
+  echo "heavy lock (old name) is held. Owner:" >&2
+  cat "$LEGACY_LOCK_DIR/owner" 2>/dev/null >&2
+  exit 3
+fi
 if ! mkdir "$LOCK_DIR" 2>/dev/null; then
-  echo "heavy lock is held. Owner:" >&2
+  echo "gpu lock is held. Owner:" >&2
   cat "$LOCK_OWNER_FILE" >&2 2>/dev/null
   exit 3
 fi
