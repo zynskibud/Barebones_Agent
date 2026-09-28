@@ -35,8 +35,12 @@ Two levers against the stage 2 baseline, 30 trials each, ran 2026-09-27: 0 infra
 |---|---|---|---|---|
 | Lever 1: `tool_errors=rich` | 0.267 -> 0.200 | 0.100 -> 0.000 | 60.3 -> 40.5 | Removes the repeat loop; the model then makes one wrong edit and stops. No gain. |
 | Lever 2: `auto_check` (harness runs pytest after each edit) | 0.267 -> 0.400 | 0.100 -> 0.300 | 60.3 -> 83.3 | First lever to raise both the score and the reliability. +0.133 is at the edge of 30-trial noise. |
+| Lever 2, confirmation (second 30-trial sample) | 0.267 -> 0.400 | 0.100 -> 0.300 | 60.3 -> 59.3 | Confirms lever 2: pooled with sample 1, auto_check passes 24 of 60 (0.400) against baseline 8 of 30 (0.267). |
+| Lever 3: `files` tools + `auto_check` | 0.433 -> 0.500 | 0.200 -> 0.500 | 46.0 -> 58.0 | Best measured configuration so far. Ran 2026-09-27, 30/30 trials, 0 infra errors. |
 
 See `docs/pilot.md`, section "Lever experiments", for the per-task table and both readings.
+
+The Harbor smoke ran one task, `write-compressor`, from Terminal-Bench 2.1 (2026-09-27/28): the chain works end to end (image pull, agent run in the container, verifier, reward), 1/1 trial, 0 infra errors. The agent stopped at 3 turns and 8.3 seconds (`end_turn`, well under the 20-turn / 300-second budget), tried piping the input file through the decompressor (which segfaulted under container CPU emulation), then wrote an empty output file and stopped. The verifier passed 2 of 3 hidden tests but gave a reward of 0. See `docs/pilot.md`, section "Harbor smoke", for the full write-up and the checklist for the 20-task subset.
 
 ## Decisions and their dates
 
@@ -81,8 +85,9 @@ Read `.coord/PROTOCOL.md` before any Ollama, Docker-heavy, or E2B run. Take the 
 ## What is waiting on whom
 
 - Experiment 1 ended on 2026-09-25 at 19:18. Stage 2 ended 2026-09-26 at 23:00 UTC, 270 of 270 trials valid, 0 infra errors. Both locks are released.
-- Lever 1 and lever 2 both ended 2026-09-27, 30/30 trials each, 0 infra errors. Both locks are released.
-- Next GO candidates, in priority order: `lever-2-confirm` (about 0.75 h, a second 30-trial sample of the `auto_check` setting), `lever-3-files-autocheck` (about 0.75 h, the `files` tool set plus `auto_check`), then the Harbor smoke (`harbor-terminal-bench-2.1-subset`).
+- Lever 1, lever 2, the lever 2 confirmation, lever 3, and the Harbor smoke all ended 2026-09-27/28, 0 infra errors. All locks are released.
+- Next GO candidate: `harbor-terminal-bench-2.1-subset`, the 20-task Terminal-Bench 2.1 subset (about 4 h), waiting on the coordinator's GO. The task list and the selection rule are filled in `experiments.yaml`.
+- Waiting on the owner: whether to adopt `files` + `auto_check` as the working setting for the private suite (`config/baseline.yaml` would get `tools: files` and `auto_check: python -m pytest -q tests`, one line each, but it moves the frozen baseline). See `docs/OPEN-QUESTIONS.md`, 2026-09-27, "Lever 3".
 - The lever 1 (`tool_errors`), lever 2 (`auto_check`), and Harbor adapter (`env: harbor`) builds are merged into `main`. `tool_errors` picks the `edit_file` error format (`plain` or `rich`, Python harness only). `auto_check` runs a shell command after a successful `edit_file` and appends its output (Python harness only). Both keys default to null/absent, byte-identical to today's behavior. See `docs/harness-spec.md`, section 15, items (i) and (j), and `docs/harbor.md`.
 - To read a finished lever run: `uv run python src/evals/report.py --compare <baseline-dir> <experiment-dir>` for the per-task pass table and the pass@1/pass^k/seconds/turns summary, and `uv run python src/evals/analyze.py <experiment-dir>` for stop reasons, tool calls, and failure patterns (repeat loops, claimed-done-but-failed).
 - `docs/OPEN-QUESTIONS.md` lists the decisions taken by default so far (the partial cell, the stage 2 prompt version, the thinking-mode time limit, the local/bash grid question, the E2B spending approval, the contention audit, the docker/local baseline gap, the `files`-only finding, and the two lever results). None of them block a run; the coordinator can revisit any of them at any time.

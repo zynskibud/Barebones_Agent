@@ -350,4 +350,57 @@ Readings:
 - Lever 1 removes the repeat loop (6 down to 2), but the model then makes one wrong edit and stops. The richer error message does not help it find the right fix. No gain: pass@1 drops from 0.267 to 0.200, and pass^3 drops to 0.000.
 - Lever 2 is the first lever that raises both the score and the reliability. pass@1 rises from 0.267 to 0.400 and pass^3 rises from 0.100 to 0.300. The gain, +0.133, sits at the edge of what 30 trials can tell apart from noise, so it is promising, not proven.
 
-Next: a confirmation run of lever 2, and the combination `files`-only tools with `auto_check`.
+### Lever 2, confirmation run
+
+Date: 2026-09-27. A second 30-trial sample of `auto_check` on the same baseline configuration (`runs/lever2-autocheck-b`), 0 infra errors. Numbers are from `uv run python src/evals/report.py --compare runs/stage2-v2 runs/lever2-autocheck-b`.
+
+| Sample | pass@1 | pass^3 | s / trial | turns |
+|---|---|---|---|---|
+| Baseline (no lever) | 0.267 | 0.100 | 60.3 | 5.8 |
+| Lever 2, sample 1 | 0.400 | 0.300 | 83.3 | 6.8 |
+| Lever 2, sample 2 (confirmation) | 0.400 | 0.300 | 59.3 | 5.8 |
+
+The second sample lands on the same pass@1 as the first, 0.400. Pooled across both samples: `auto_check` passes 24 of 60 trials (0.400) against a baseline of 8 of 30 (0.267). The confirmation holds: `auto_check` is not a 30-trial fluke.
+
+### Lever 3: `files` tools plus `auto_check`
+
+Date: 2026-09-27. The `files` tool set (no `bash`) with `auto_check` set to `python -m pytest -q tests`, 30 trials, 0 infra errors, into `runs/lever3-files-autocheck`. Compared against the stage 2 `files`-only row (`py.files.docker.python.qwen3-8b.no-think`, pass@1 0.433). Numbers are from `uv run python src/evals/report.py --compare runs/stage2-v2 runs/lever3-files-autocheck` and `uv run python src/evals/analyze.py runs/lever3-files-autocheck`.
+
+| Configuration | pass@1 | pass^3 | s / trial | turns |
+|---|---|---|---|---|
+| `files` only, no lever (stage 2) | 0.433 | 0.200 | 46.0 | 5.9 |
+| `files` only + `auto_check` (lever 3) | 0.500 | 0.500 | 58.0 | 5.5 |
+
+Per task, `files` + `auto_check`: 01: 3/3, 02: 0/3, 03: 3/3, 04: 3/3, 05: 3/3, 06: 3/3, 07: 0/3, 08: 0/3, 09: 0/3, 10: 0/3. Against the `files`-only stage 2 row, task 04 goes from 0/3 to 3/3 and task 06 from 2/3 to 3/3. Task 08 drops from 1/3 to 0/3 and task 09 drops from 2/3 to 0/3.
+
+Patterns (`analyze.py`): stop reasons `end_turn` 25, `max_seconds` 3, `max_turns` 2. First tool call is `read_file` 15 times and `list_files` 15 times, never `edit_file` blind. `bash` is not in this tool set, so 0 of 30 trials used it. Failure patterns: `repeat_loop` 4, `claimed_done_failed` 10, `limit_hit` 5.
+
+**Reading.** `files` tools only, prompt v2, `auto_check` on, `docker`, is the best measured configuration so far: pass@1 0.500, pass^3 0.500. It beats the `files`-only stage 2 row (0.433 / 0.200) and the `files-bash` + `auto_check` lever 2 row (0.400 / 0.300). Tasks 08 and 09 drop when `bash` is removed and `auto_check` is added together, so the combination is not a strict sum of the two single-lever gains; it is close to it, and it is the highest score measured in this project so far.
+
+Next: the Harbor smoke, then the coordinator's GO for the Terminal-Bench 2.1 subset.
+
+## Harbor smoke
+
+Date: 2026-09-27/28. First real Harbor run: one task from Terminal-Bench 2.1 (`terminal-bench/terminal-bench-2-1`, 89 tasks), chosen by Harbor (`-l 1`): `write-compressor`. Configuration `py.files-bash.harbor.terminal-bench-2-1.qwen3-8b.no-think`, prompt v2, `auto_check` not set (it is Python-harness-only and not wired into the Harbor adapter). Results in `runs/harbor-smoke/`.
+
+**What worked.** The image (`alexgshaw/write-compressor:20251031`) pulled and started. The Harbor adapter (`HarborEnv`, `BarebonesAgent`) ran our loop inside the container, wrote `agent/transcript.jsonl` and `agent/result.json` in the spec format, and the verifier ran after the agent stopped and wrote `verifier/reward.txt` and `verifier/ctrf.json`. The whole trial, from environment setup to verifier finish, took about 85 seconds (excluding the earlier image pull).
+
+**What the model did.** The task: a decompressor sits at `/app/decomp.c`, compiled as `/app/decomp2`. `/app/data.txt` holds plain text. The agent must write `/app/data.comp`, at most 2500 bytes, such that piping it through the decompressor gives back `data.txt` exactly. The agent stopped after 3 turns and 8.3 seconds, well inside the 20-turn, 300-second budget:
+
+1. First bash call: `cat /app/data.txt | /app/decomp > data.comp`, feeding the plain text into the decompressor instead of writing a compressor. This segfaulted (`qemu: uncaught target signal 11`, exit code 139) under the emulated container.
+2. Second bash call: `echo -n "" > data.comp`, an empty file.
+3. The agent then replied "I created an empty file named data.comp. Let me know if you'd like me to try a different approach," and stopped with `end_turn`. That message asks the user a question, against the system prompt's "Do not ask the user questions. Nobody will answer."
+
+**Verifier result.** 2 of 3 hidden tests passed (`test_compressed_file_exists`, `test_compression_size` — an empty file is under 2500 bytes) and 1 failed (`test_decompression_produces_original`, since decompressing an empty file gives empty output, not the original text). `verifier/reward.txt` is `0`, even though 2 of 3 tests passed: the reward for this task is not a simple fraction of passed tests, and that must be checked per task before reading the subset's reward numbers as partial credit.
+
+**Things to check before the 20-task subset.**
+
+- The loop stopped on its own in 8.3 seconds, far under the 300-second and 20-turn limits. This failure is model behavior, not a limit that needs raising. Turns and time were not the binding constraint here.
+- The instruction asks for real compression work (write a program or encoding that shrinks the text), not a small edit to existing code. This is a harder kind of task than the private suite's bug-fixes and features, and the model here did not attempt an encoding at all; it guessed once, hit a wall, and gave up.
+- The `bash` call segfaulted under the container's CPU emulation (the image is `amd64`, this Mac is `arm64`, so Docker runs it under qemu). It is not yet known whether this segfault is a property of the task (running the decompressor on non-decompressed input) or a property of the emulated environment; watch for repeat segfaults across the subset that might be emulation noise rather than model error.
+- The prompt v2 rule "run the tests before you finish" has no test command available inside this container; the hidden tests live under `/tests`, outside the agent's reach, and there is no local check script the model can run. The rule cannot be followed literally on Terminal-Bench tasks, unlike the private suite where `tests/` sits in the repo.
+- The model's final message violates the system prompt's "do not ask the user questions" rule. Nothing in the harness enforces that rule; it is an instruction the model did not follow.
+- The tool set was `files-bash` because that is what `config/baseline.yaml` sets; the model used only `bash` here and never touched `read_file` or `list_files`. Worth watching in the subset whether the file tools ever get used on Terminal-Bench tasks, or whether `bash` alone would do as well.
+- The reward was binary here (0, despite 2 of 3 tests passing). Check each subset task's reward function before comparing raw reward numbers across tasks.
+
+This one task is not enough to say whether qwen3:8b can do real Terminal-Bench work; it shows the chain runs end to end (image, adapter, verifier, reward) and surfaces one clear failure mode (give up after the first wrong guess, no exploration, no retry).

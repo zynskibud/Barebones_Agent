@@ -123,8 +123,8 @@
     docs/pilot.md, "Lever experiments".
 
 - id: lever-2-confirm
-  priority: 1
-  status: ready
+  priority: 0
+  status: done
   command: >-
     caffeinate -i uv run python src/evals/run.py
     --runs runs/lever2-autocheck-b
@@ -132,7 +132,7 @@
     --set prompt=config/system_prompt_v2.txt
     --set "auto_check=python -m pytest -q tests"
   trials: 30
-  est_hours: 0.75
+  est_hours: 0.5
   needs:
     ollama: qwen3:8b
     docker: yes
@@ -145,10 +145,15 @@
     src/evals/report.py --compare runs/stage2-v2 runs/lever2-autocheck-b,
     and pool the two samples (runs/lever2-autocheck and
     runs/lever2-autocheck-b) for a 60-trial read.
+  result: >-
+    pass@1 0.267 -> 0.400 (same as sample 1), pass^3 0.100 -> 0.300, 59.3 s
+    per trial; 30/30 trials, 0 infra errors; ran 2026-09-27. Pooled with
+    sample 1: auto_check 24 of 60 = 0.400 against baseline 8 of 30 = 0.267.
+    The confirmation holds. See docs/pilot.md, "Lever 2, confirmation run".
 
 - id: lever-3-files-autocheck
-  priority: 2
-  status: ready
+  priority: 0
+  status: done
   command: >-
     caffeinate -i uv run python src/evals/run.py
     --runs runs/lever3-files-autocheck
@@ -156,7 +161,7 @@
     --set prompt=config/system_prompt_v2.txt
     --set "auto_check=python -m pytest -q tests"
   trials: 30
-  est_hours: 0.75
+  est_hours: 0.5
   needs:
     ollama: qwen3:8b
     docker: yes
@@ -167,17 +172,23 @@
     The files tool set plus auto_check. Compare with the stage 2
     py.files.docker.python.qwen3-8b.no-think row (pass@1 0.433) to see
     whether dropping bash and adding auto_check add up.
+  result: >-
+    pass@1 0.433 -> 0.500, pass^3 0.200 -> 0.500, 58.0 s per trial; 30/30
+    trials, 0 infra errors; ran 2026-09-27. The best measured configuration
+    so far. Patterns: repeat_loop 4, claimed_done_failed 10, limit_hit 5,
+    0 blind first edits. See docs/pilot.md, "Lever 3: files tools plus
+    auto_check".
 
 - id: harbor-smoke
-  priority: 3
-  status: ready
+  priority: 0
+  status: done
   command: >-
     caffeinate -i env PYTHONPATH=. HARBOR_SET=prompt=config/system_prompt_v2.txt
     uv run harbor run --dataset terminal-bench/terminal-bench-2-1
     --agent src.evals.harbor.agent:BarebonesAgent --n-concurrent 1
     --jobs-dir runs/harbor-smoke --job-name smoke -l 1
   trials: 1
-  est_hours: 0.5
+  est_hours: 0.05
   needs:
     ollama: qwen3:8b
     docker: yes
@@ -190,10 +201,19 @@
     pull, bash and GNU timeout in the image, file ownership, the reward path).
     The image pull is CPU-BULK. Read runs/harbor-smoke and docs/harbor.md
     afterward and fix before the 20-task subset.
+  result: >-
+    Task write-compressor, 1/1 trial, 0 infra errors; ran 2026-09-27/28. The
+    chain works end to end: image pull, agent run in the container, verifier,
+    reward.txt. Agent: end_turn, 3 turns, 8.3 s, 2 bash calls, 0 malformed;
+    it piped data.txt through the decompressor (segfault under qemu
+    emulation), then wrote an empty data.comp and stopped. Verifier: 2 of 3
+    tests passed, reward 0.0 (not a fraction of tests passed). See
+    docs/pilot.md, "Harbor smoke", for the full write-up and the list of
+    things to check before the subset.
 
 - id: harbor-terminal-bench-2.1-subset
-  priority: 4
-  status: blocked-on coordinator GO and a 20-task subset list
+  priority: 1
+  status: ready
   command: >-
     caffeinate -i env PYTHONPATH=. HARBOR_SET=prompt=config/system_prompt_v2.txt
     uv run harbor run
@@ -202,10 +222,10 @@
     --n-concurrent 1
     --jobs-dir runs/harbor-tb21
     --job-name tb21-subset
-    -i TASK_1 -i TASK_2 -i TASK_3 -i TASK_4 -i TASK_5
-    -i TASK_6 -i TASK_7 -i TASK_8 -i TASK_9 -i TASK_10
-    -i TASK_11 -i TASK_12 -i TASK_13 -i TASK_14 -i TASK_15
-    -i TASK_16 -i TASK_17 -i TASK_18 -i TASK_19 -i TASK_20
+    -i adaptive-rejection-sampler -i build-pmars -i chess-best-move -i compile-compcert -i crack-7z-hash
+    -i dna-assembly -i feal-differential-cryptanalysis -i fix-code-vulnerability -i git-leak-recovery -i hf-model-inference
+    -i largest-eigenval -i make-doom-for-mips -i model-extraction-relu-logits -i multi-source-data-merger -i password-recovery
+    -i polyglot-rust-c -i pypi-server -i qemu-startup -i regex-log -i sanitize-git-repo
   trials: 20 x 1
   est_hours: 4
   needs:
@@ -215,13 +235,23 @@
   done_when: "20 trial folders under runs/harbor-tb21/tb21-subset/, each with agent/result.json and a verifier reward"
   results: runs/harbor-tb21
   note: >-
-    Replace TASK_1..TASK_20 with the subset list. Before the first run:
+    Tool set is files-bash, from config/baseline.yaml, unchanged; HARBOR_SET
+    sets only the prompt, no auto_check (auto_check is Python-harness-only
+    and does not apply to Harbor tasks; see docs/OPEN-QUESTIONS.md,
+    2026-09-27, Harbor smoke rows). Concurrency is 1 (--n-concurrent 1).
+    The 20 tasks were chosen with a fixed rule: list the 89 task names of
+    terminal-bench/terminal-bench-2-1 (uv run harbor dataset download
+    terminal-bench/terminal-bench-2-1 --export -o <dir>, then list the
+    task folders under <dir>/terminal-bench-2-1/), sort them, take every
+    4th name starting at index 0 (0, 4, 8, ...), then take the first 20 of
+    those. Run only after the coordinator's GO. Before the first run:
     (1) the image pulls and builds are CPU-BULK under the protocol; pull them in a separate step with the heavy lock;
     (2) Terminal-Bench 2.1 tasks need Docker, and Harbor starts one container per task (its default --env is docker);
     (3) keep --n-concurrent 1 and the machine otherwise idle;
     (4) est_hours assumes 300 s for our loop plus about 5 min of build and verifier per task; Harbor's own per-task agent timeout is longer than our max_seconds, so our loop ends first;
-    (5) check the dataset name with harbor dataset list or the Harbor Hub, and do a one-task smoke run first;
-    (6) the container images must have bash and GNU timeout.
+    (5) the dataset name is confirmed (harbor dataset download terminal-bench/terminal-bench-2-1 --export lists 89 tasks under terminal-bench-2-1/); the harbor-smoke run already did the one-task smoke test;
+    (6) the container images must have bash and GNU timeout;
+    (7) the harbor-smoke task (write-compressor, not in this subset) showed the model can give up after one failed guess well inside the time and turn limits, and that its final message can violate the "do not ask the user questions" rule; watch for both in the subset, and note that Harbor's reward is not always a simple fraction of tests passed.
 
 - id: full-grid-v2
   priority: 5
