@@ -18,6 +18,11 @@ MIN_CALL_SECONDS = 1.0
 Record = Callable[[dict], None]
 
 
+def never_stop() -> bool:
+    """The default should_stop: every entry point except the Harbor adapter uses this."""
+    return False
+
+
 def run_loop(
     model: Model,
     tools: Tools,
@@ -25,10 +30,14 @@ def run_loop(
     max_turns: int,
     max_seconds: float,
     record: Record,
+    should_stop: Callable[[], bool] = never_stop,
 ) -> dict:
     """Run the loop from the spec on messages, in place. Return the facts of the run.
 
     record gets one transcript record per assistant message, tool result, and end.
+    should_stop is polled before each model call. Only the Harbor adapter passes one
+    (docs/harbor.md, "Time caps"); it stops the loop with stop_reason "wall_clock",
+    a value used only in Harbor runs (docs/harness-spec.md, section 14).
     """
     turn = 0
     malformed = 0
@@ -38,6 +47,9 @@ def run_loop(
     error = None
     started = time.monotonic()
     while True:
+        if should_stop():
+            stop_reason = "wall_clock"
+            break
         # Each call gets the time that remains, so the run ends near max_seconds.
         remaining = max(max_seconds - (time.monotonic() - started), MIN_CALL_SECONDS)
         try:
