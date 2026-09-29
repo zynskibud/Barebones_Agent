@@ -61,7 +61,11 @@ def build_agent(config: dict, workdir: str, env_options: dict | None = None) -> 
     tool_errors = config.get("tool_errors")
     if tool_errors is None:
         tool_errors = DEFAULT_TOOL_ERRORS
-    settings = {"tool_errors": tool_errors, "auto_check": config.get("auto_check")}
+    settings = {
+        "tool_errors": tool_errors,
+        "auto_check": config.get("auto_check"),
+        "bash_timeout": config.get("bash_timeout"),
+    }
     tools = Tools(definitions, HANDLERS, env, messages, settings)
     model = Model(
         name=config["model"],

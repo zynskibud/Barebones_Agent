@@ -84,7 +84,7 @@ func EnvError(messages *Messages, err *env.Error, path string) string {
 	if err.Path != nil {
 		path = *err.Path
 	}
-	return messages.Text(err.Key, "path", path)
+	return messages.Text(err.Key, "path", path, "seconds", "30")
 }
 
 // Truncate keeps the first MaxResultChars characters and adds the truncation line.

@@ -52,7 +52,7 @@ export function text(messages: Messages, key: string, values: { [name: string]: 
 // The message names the path that the model sent, unless the env set error.path.
 export function envError(messages: Messages, error: EnvError, path: string = ""): string {
   const named = error.path !== null ? error.path : path;
-  return text(messages, error.key, { path: named });
+  return text(messages, error.key, { path: named, seconds: 30 });
 }
 
 // Return what is wrong with the arguments, or null when they fit the schema.

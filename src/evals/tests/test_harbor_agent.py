@@ -153,3 +153,14 @@ def test_wall_clock_cap_fires_with_a_slow_model(tmp_path, monkeypatch):
     lines_after = (logs / "transcript.jsonl").read_text().splitlines()
     assert len(lines_after) == len(lines)
     assert json.loads((logs / "result.json").read_text()) == result
+
+
+def test_harbor_set_parses_into_integers_and_strings():
+    config = adapter.harbor_config(
+        "prompt=config/system_prompt_v3.txt,max_turns=40,max_seconds=600,bash_timeout=120"
+    )
+    assert config["prompt"] == "config/system_prompt_v3.txt"
+    for key, value in (("max_turns", 40), ("max_seconds", 600), ("bash_timeout", 120)):
+        assert config[key] == value
+        assert type(config[key]) is int
+    assert config["env"] == "harbor"

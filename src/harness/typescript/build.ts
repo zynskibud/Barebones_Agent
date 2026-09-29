@@ -56,6 +56,7 @@ export function buildAgent(config: Config, workdir: string): Agent {
   if (config.auto_check !== undefined && config.auto_check !== null) {
     throw new Error("auto_check is not implemented in this harness");
   }
+  refuseBashTimeout(config);
   refuseRichToolErrors(config);
   const envClass = ENVS.get(String(config.env));
   if (envClass === undefined) throw new Error(`unknown env: ${config.env}`);
@@ -92,6 +93,15 @@ export function buildAgent(config: Config, workdir: string): Agent {
     maxTurns: config.max_turns as number,
     maxSeconds: config.max_seconds as number,
   };
+}
+
+// bash_timeout is a Python-only key. This harness runs bash with 30 seconds.
+function refuseBashTimeout(config: Config): void {
+  const value = config.bash_timeout;
+  if (value !== undefined && value !== null && value !== 30) {
+    process.stderr.write("bash_timeout is not implemented in this harness\n");
+    process.exit(3);
+  }
 }
 
 // The tool_errors setting picks the edit_file error format. This harness

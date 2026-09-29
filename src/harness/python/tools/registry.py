@@ -25,13 +25,14 @@ def text(messages: dict, key: str, **values: object) -> str:
     return node.format(**values)
 
 
-def env_error(messages: dict, error: EnvError, path: str = "") -> str:
+def env_error(messages: dict, error: EnvError, path: str = "", seconds: float = 30) -> str:
     """Turn an EnvError into the message string that its key names.
 
     The message names the path that the model sent, unless the env set error.path.
+    seconds fills {seconds} of errors.timeout: the timeout the command ran under.
     """
     named = error.path if error.path is not None else path
-    return text(messages, error.key, path=named)
+    return text(messages, error.key, path=named, seconds=f"{seconds:g}")
 
 
 def check_arguments(definition: dict, arguments: object) -> str | None:

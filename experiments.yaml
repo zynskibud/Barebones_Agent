@@ -283,9 +283,9 @@
 
 - id: harbor-tb21-run2
   priority: 1
-  status: "blocked-on the three default changes above being applied in code"
+  status: ready
   command: >-
-    caffeinate -i env PYTHONPATH=. HARBOR_SET=prompt=config/system_prompt_v3.txt,max_turns=40,max_seconds=600 HARBOR_WALL_SECONDS=600
+    caffeinate -i env PYTHONPATH=. HARBOR_SET=prompt=config/system_prompt_v3.txt,max_turns=40,max_seconds=600,bash_timeout=120 HARBOR_WALL_SECONDS=600
     uv run harbor run
     --dataset terminal-bench/terminal-bench-2-1
     --agent src.evals.harbor.agent:BarebonesAgent

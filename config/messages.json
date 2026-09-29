@@ -7,7 +7,7 @@
     "already_exists": "error: {path} already exists",
     "old_str_not_found": "error: old_str not found in {path}",
     "old_str_multiple": "error: old_str matches more than once in {path}",
-    "timeout": "error: command timed out after 30 seconds",
+    "timeout": "error: command timed out after {seconds} seconds",
     "unknown_tool": "error: unknown tool {name}",
     "invalid_arguments": "error: invalid arguments for {name}: {detail}"
   },

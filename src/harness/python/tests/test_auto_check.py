@@ -72,7 +72,7 @@ def test_auto_check_on_a_timeout_gives_the_timeout_error(env, tmp_path, monkeypa
         {"path": "a.py", "old_str": "old\n", "new_str": "new\n"},
         {"auto_check": "sleep 1"},
     )
-    assert result.endswith(MESSAGES["errors"]["timeout"])
+    assert result.endswith(MESSAGES["errors"]["timeout"].format(seconds=30))
 
 
 def test_auto_check_never_runs_after_a_failed_edit(env, tmp_path):

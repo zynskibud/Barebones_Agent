@@ -13,12 +13,16 @@ TIMEOUT_SECONDS = 30
 def bash(env: Env, messages: dict, arguments: dict, settings: dict) -> str:
     """Run the command. Return stdout, then stderr, then the exit code line.
 
-    settings is unused: bash has no rich mode.
+    settings["bash_timeout"] is the command timeout in seconds. If it is absent or
+    null, the timeout is TIMEOUT_SECONDS.
     """
+    timeout = settings.get("bash_timeout")
+    if timeout is None:
+        timeout = TIMEOUT_SECONDS
     try:
-        stdout, stderr, code = env.run(arguments["command"], TIMEOUT_SECONDS)
+        stdout, stderr, code = env.run(arguments["command"], timeout)
     except EnvError as error:
-        return env_error(messages, error)
+        return env_error(messages, error, seconds=timeout)
     return with_newline(stdout) + with_newline(stderr) + text(messages, "exit_code", n=code)
 
 

@@ -53,6 +53,23 @@ type agent struct {
 	maxSeconds   float64
 }
 
+// refuseBashTimeout exits the process when bash_timeout is set to anything but 30.
+// bash_timeout is a Python-only key.
+func refuseBashTimeout(cfg *config) {
+	found, ok := cfg.get("bash_timeout")
+	if !ok || found.isNull() {
+		return
+	}
+	if found.kind == intValue && found.i == 30 {
+		return
+	}
+	if found.kind == floatValue && found.f == 30 {
+		return
+	}
+	fmt.Fprintln(os.Stderr, "bash_timeout is not implemented in this harness")
+	os.Exit(3)
+}
+
 // refuseRichToolErrors exits the process when the config asks for a tool_errors
 // mode other than plain. This harness implements only plain, the v1 behavior.
 // rich is a Python-only experiment.
@@ -73,6 +90,7 @@ func buildAgent(cfg *config, workdir string) (*agent, error) {
 	if found, ok := cfg.get("auto_check"); ok && !found.isNull() {
 		return nil, errors.New("auto_check is not implemented in this harness")
 	}
+	refuseBashTimeout(cfg)
 	refuseRichToolErrors(cfg)
 	root, err := repoRoot()
 	if err != nil {
