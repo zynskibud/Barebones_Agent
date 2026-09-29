@@ -212,8 +212,8 @@
     things to check before the subset.
 
 - id: harbor-terminal-bench-2.1-subset
-  priority: 1
-  status: ready
+  priority: 0
+  status: done
   command: >-
     caffeinate -i env PYTHONPATH=. HARBOR_SET=prompt=config/system_prompt_v2.txt HARBOR_WALL_SECONDS=600
     uv run harbor run
@@ -230,13 +230,25 @@
     -i terminal-bench/largest-eigenval -i terminal-bench/make-doom-for-mips -i terminal-bench/model-extraction-relu-logits -i terminal-bench/multi-source-data-merger -i terminal-bench/password-recovery
     -i terminal-bench/polyglot-rust-c -i terminal-bench/pypi-server -i terminal-bench/qemu-startup -i terminal-bench/regex-log -i terminal-bench/sanitize-git-repo
   trials: 20 x 1
-  est_hours: 4
+  est_hours: 8.5
   needs:
     ollama: true
     docker: true
     e2b: false
   done_when: "20 trial folders under runs/harbor-tb21/tb21-subset/, each with agent/result.json and a verifier reward"
   results: runs/harbor-tb21
+  result: >-
+    0 of 20; ran 2026-09-29T03:27Z to 11:58 local, about 8.5 hours of
+    machine-clock est_hours against about 12.5 hours actual wall (est_hours
+    is the pre-run estimate; the overrun was sleep and qemu, not extra
+    trials). 0 of 20 graded tasks scored reward 1; stops 13 end_turn, 4
+    max_turns, 2 max_seconds, 1 infra_error; no exit-139. About 6 hours of
+    the wall time was a Mac sleep overnight plus qemu (amd64-on-arm64)
+    emulation setup on 4 of the 20 tasks (adaptive-rejection-sampler
+    14,090 s, make-doom-for-mips 13,537 s, compile-compcert 9,587 s,
+    multi-source-data-merger 4,385 s; the other 16 tasks took 46 to 852 s
+    each). See docs/pilot.md, "Terminal-Bench 2.1 subset, run 1", for the
+    per-task table and the failure patterns.
   note: >-
     Tool set is files-bash, from config/baseline.yaml, unchanged; HARBOR_SET
     sets only the prompt, no auto_check (auto_check is Python-harness-only
@@ -268,6 +280,45 @@
     real (wall-clock) time on the agent phase, on top of Harbor's multiplier, so a sleep
     cannot stretch it; expiry = emulation timeout, excluded from the score with a note
     (src/evals/harbor/score.py).
+
+- id: harbor-tb21-run2
+  priority: 1
+  status: "blocked-on the three default changes above being applied in code"
+  command: >-
+    caffeinate -i env PYTHONPATH=. HARBOR_SET=prompt=config/system_prompt_v3.txt,max_turns=40,max_seconds=600 HARBOR_WALL_SECONDS=600
+    uv run harbor run
+    --dataset terminal-bench/terminal-bench-2-1
+    --agent src.evals.harbor.agent:BarebonesAgent
+    --n-concurrent 1
+    --environment-build-timeout-multiplier 1.0
+    --verifier-timeout-multiplier 0.67
+    --agent-timeout-multiplier 0.67
+    --jobs-dir runs/harbor-tb21
+    --job-name tb21-subset-run2
+    -i terminal-bench/adaptive-rejection-sampler -i terminal-bench/build-pmars -i terminal-bench/chess-best-move -i terminal-bench/compile-compcert -i terminal-bench/crack-7z-hash
+    -i terminal-bench/dna-assembly -i terminal-bench/feal-differential-cryptanalysis -i terminal-bench/fix-code-vulnerability -i terminal-bench/git-leak-recovery -i terminal-bench/hf-model-inference
+    -i terminal-bench/largest-eigenval -i terminal-bench/make-doom-for-mips -i terminal-bench/model-extraction-relu-logits -i terminal-bench/multi-source-data-merger -i terminal-bench/password-recovery
+    -i terminal-bench/polyglot-rust-c -i terminal-bench/pypi-server -i terminal-bench/qemu-startup -i terminal-bench/regex-log -i terminal-bench/sanitize-git-repo
+  trials: 20 x 1
+  est_hours: 4
+  needs:
+    ollama: true
+    docker: true
+    e2b: false
+  done_when: "20 trial folders under runs/harbor-tb21/tb21-subset-run2/, each with agent/result.json and a verifier reward"
+  results: runs/harbor-tb21
+  note: >-
+    Same 20 tasks, same command shape as harbor-terminal-bench-2.1-subset
+    (run 1), plus the flags the three OPEN-QUESTIONS defaults need once
+    implemented: a 120 s bash timeout inside env: harbor
+    (src/harness/python/env/harbor.py, no CLI flag; a code change, not a
+    run flag), config/system_prompt_v3.txt for the "keep going, do not
+    stop to ask" line, and max_turns=40 / max_seconds=600 via HARBOR_SET.
+    Run 1 (runs/harbor-tb21/tb21-subset) is the baseline for comparison:
+    0 of 20, 13 end_turn / 4 max_turns / 2 max_seconds / 1 infra_error, and
+    the failure-pattern counts in docs/pilot.md, "Terminal-Bench 2.1
+    subset, run 1". Run only after the coordinator's GO, same isolation
+    checks as run 1 (items 1-3 and 6 in that entry's note still apply).
 
 - id: full-grid-v2
   priority: 5

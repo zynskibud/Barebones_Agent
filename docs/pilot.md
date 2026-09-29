@@ -404,3 +404,69 @@ Date: 2026-09-27/28. First real Harbor run: one task from Terminal-Bench 2.1 (`t
 - The reward was binary here (0, despite 2 of 3 tests passing). Check each subset task's reward function before comparing raw reward numbers across tasks.
 
 This one task is not enough to say whether qwen3:8b can do real Terminal-Bench work; it shows the chain runs end to end (image, adapter, verifier, reward) and surfaces one clear failure mode (give up after the first wrong guess, no exploration, no retry).
+
+## Terminal-Bench 2.1 subset, run 1
+
+Date: 2026-09-29, 03:27 UTC to 11:58 local (about 12.5 hours end to end). Same machine, same Ollama, same model digest as every run above. `runs/harbor-tb21/tb21-subset/`, job `tb21-subset`.
+
+### Setup
+
+- Configuration: `py.files-bash.harbor.terminal-bench-2-1.qwen3-8b.no-think`, prompt v2, tool set `files-bash` (`config/baseline.yaml`, unchanged), no `auto_check` (it is Python-harness-only; Harbor tasks have no `tests/` folder for it to call).
+- Limits: 20 turns / 300 seconds awake, as everywhere else. On top of that, the three Harbor time caps from `docs/harbor.md`, "Time caps": `--environment-build-timeout-multiplier 1.0`, `--agent-timeout-multiplier 0.67`, `--verifier-timeout-multiplier 0.67` (bringing each 900 s Terminal-Bench default phase to about 600 s), and `HARBOR_WALL_SECONDS=600` capping the adapter's own real-clock time on the agent phase.
+- `--n-concurrent 1`. 20 of the 89 Terminal-Bench 2.1 tasks, chosen by the fixed rule in `experiments.yaml` (sort the 89 names, take every 4th starting at index 0, take the first 20).
+- The task images are `amd64`; this Mac is `arm64`, so every task ran under qemu CPU emulation inside Docker.
+
+### Per-task table
+
+| Task | Reward | Stop | Turns | Awake s | Exit | Trial wall s |
+|---|---|---|---|---|---|---|
+| adaptive-rejection-sampler | 0.0 | end_turn | 3 | 50.3 | 0 | 14,090 |
+| build-pmars | 0.0 | max_turns | 20 | 124.3 | 2 | 172 |
+| chess-best-move | 0.0 | end_turn | 1 | 4.8 | 0 | 110 |
+| compile-compcert | 0.0 | max_seconds | 9 | 300.0 | 2 | 9,587 |
+| crack-7z-hash | 0.0 | end_turn | 8 | 90.3 | 0 | 164 |
+| dna-assembly | 0.0 | infra_error | 0 | 13.0 | 3 | 66 |
+| feal-differential-cryptanalysis | 0.0 | max_turns | 20 | 232.6 | 2 | 349 |
+| fix-code-vulnerability | 0.0 | max_turns | 20 | 284.9 | 2 | 319 |
+| git-leak-recovery | 0.0 | end_turn | 4 | 16.9 | 0 | 72 |
+| hf-model-inference | 0.0 | max_seconds | 15 | 300.0 | 2 | 367 |
+| largest-eigenval | 0.0 | end_turn | 5 | 69.1 | 0 | 104 |
+| make-doom-for-mips | 0.0 | end_turn | 11 | 116.7 | 0 | 13,537 |
+| model-extraction-relu-logits | 0.0 | end_turn | 4 | 16.2 | 0 | 46 |
+| multi-source-data-merger | 0.0 | max_turns | 20 | 120.4 | 2 | 4,385 |
+| password-recovery | 0.0 | end_turn | 8 | 92.8 | 0 | 163 |
+| polyglot-rust-c | 0.0 | end_turn | 2 | 29.3 | 0 | 151 |
+| pypi-server | 0.0 | end_turn | 1 | 20.4 | 0 | 64 |
+| qemu-startup | 0.0 | end_turn | 12 | 77.1 | 0 | 142 |
+| regex-log | 0.0 | end_turn | 2 | 16.0 | 0 | 852 |
+| sanitize-git-repo | 0.0 | end_turn | 11 | 109.9 | 0 | 155 |
+
+`uv run python src/evals/harbor/score.py runs/harbor-tb21/tb21-subset` gives the score line: **0 of 20 graded tasks with reward 1 = 0.000**. No exit-139 (no qemu segfault this run). Stop reasons: 13 `end_turn`, 4 `max_turns`, 2 `max_seconds`, 1 `infra_error`.
+
+### Failure patterns
+
+Every one of the 20 tasks scored 0, so all 20 sort into a failure pattern. As in the pilot, each task goes into one group.
+
+| Pattern | Count | Example |
+|---|---|---|
+| Claimed done without a way to check the work | 6 | `adaptive-rejection-sampler`: `touch`ed four empty files, then said "I have implemented the adaptive-rejection sampler in R with the required functionality... I have also generated sample files for normal and exponential distributions." |
+| Repeat loop: sent the same command over and over, hit a limit while still stuck | 5 | `multi-source-data-merger`: the same `python -c "import pyarrow as pa; import pandas as pd; print('Dependencies installed')"` check, 20 times in a row, then `max_turns` |
+| Gave up after one or a few failed tries | 3 | `crack-7z-hash`, after 3 identical failed extracts with the same wrong password: "The password \"secret\" is incorrect. I cannot proceed further without the correct password." |
+| Stuck reading or listing the same files, never made an edit | 2 | `fix-code-vulnerability`: 20 turns alternating `list_files` and `read_file` on `test_route.py` and `test_router.py`, 0 edits, then `max_turns` |
+| Asked the user and stopped, against the system prompt's "do not ask" rule | 2 | `chess-best-move`: "Please provide the current state of the board in text format or describe the position so I can help you find the best move." |
+| Model degenerated | 1 | `dna-assembly`: Ollama returned `HTTP 500 ... "prediction aborted, token repeat limit reached"` before turn 1, 0 turns, no tool call |
+| Empty reply: no tool call, no message | 1 | `pypi-server`: the one assistant turn has empty content and no tool call; the harness reads it as `end_turn`, the same empty-reply behavior the pilot noted as an open point |
+
+The other five "claimed done" tasks: `largest-eigenval` (rewrote the function, wrong result), `polyglot-rust-c` (one edit, claimed done, no way to compile and check both languages), `regex-log` (one edit, the hidden test shows the regex is wrong), `password-recovery` (found and wrote a password, the wrong one), `sanitize-git-repo` (ran several `sed` replacements, claimed the repo was clean, reward 0). The other two "gave up" tasks: `qemu-startup` (12 turns of real trial-and-error on `qemu` flags, then failed on a self-inflicted relative path `app/alpine.iso` instead of `/app/alpine.iso`, and asked the user to check the file instead of running `ls`); `git-leak-recovery` (3 identical failed `grep` calls with a broken pattern, then "I will proceed to manually recover the secret... Let me search through the commit history," and stopped without another tool call). The other four "repeat loop" tasks: `hf-model-inference` (10 identical failed `from_pretrained(..., local_files_only)` calls on a model it never downloaded), `build-pmars` (20 `apt-get source pmars` / `sources.list` edits that never fixed the missing `deb-src` line), `compile-compcert` (repeated near-identical `apt-get install git && git clone ...` one-liners), `feal-differential-cryptanalysis` (16 `edit_file` calls writing and rewriting the same comment-only stub function, never a working attack).
+
+### Machine facts
+
+The run started 2026-09-29T03:27Z and ended 11:58 local; trials ran back to back with no gap between them, so the roughly 12.5-hour span is almost entirely trial wall time, not scheduling overhead. The Mac slept many times overnight. Four tasks carry the entire cost of that: `adaptive-rejection-sampler` (14,090 s), `make-doom-for-mips` (13,537 s), `compile-compcert` (9,587 s), and `multi-source-data-merger` (4,385 s) — together 41,599 s, about 11.6 hours, while each task's own awake clock (50 to 300 s) shows almost none of that time was real work. The other 16 tasks took 3,296 s combined (about 55 minutes), ranging 46 to 852 s; one of those 16, `regex-log`, took 852 s against a neighboring range of 46 to 367 s for the rest, likely a shorter sleep during container teardown rather than a build or agent-side cause (its own awake time was 16.0 s). Every task ran its container under qemu, emulating the `amd64` task images on this `arm64` Mac, which slows every command, not only the four long ones.
+
+### Conclusions
+
+1. **The private suite never showed these failure modes.** Terminal-Bench prompts are long and domain-specific (primer design under lab constraints, QEMU chardev flags, a Hugging Face download and a Flask server, a real Golden Gate assembly), against the private suite's 1-to-8-line bug fixes. Several tasks need real installs and builds (`git`, `apt-get`, `pmars`, CompCert) that no private task ever asked for. None of the 20 containers exposes a `tests/` folder or test command the way the private repos do, so the prompt's "run the tests before you finish" line has nothing to run against; 6 of 20 failures are exactly a claim with no check behind it. And the model asked the user or gave up in 5 of 20 despite the explicit "do not ask" rule, something the private suite's small, always-attemptable fixes rarely triggered.
+2. **Emulation and sleep, not the model, spent most of the wall clock.** About 92% of the run's 12.5 hours (11.6 of 12.5) came from 4 of the 20 tasks, each showing tens to a few hundred seconds of real agent work against one to four hours of trial wall time — the signature of a laptop sleeping mid-trial. Every task additionally ran under qemu's `amd64`-on-`arm64` emulation, which slows commands for all 20, not only the four outliers.
+3. **The next change is not simply "raise the limits."** All 6 of the trials that hit `max_turns` or `max_seconds` (`build-pmars`, `compile-compcert`, `feal-differential-cryptanalysis`, `fix-code-vulnerability`, `hf-model-inference`, `multi-source-data-merger`) were repeating the same failed move, not making slow-but-real progress; a bigger budget mostly gives a loop more room to loop. The three changes queued in `docs/OPEN-QUESTIONS.md` (2026-09-29) target the patterns instead: a longer Harbor `bash` timeout for the install/compile tasks, a stronger "keep going, do not stop to ask" prompt line for the 5 ask-or-give-up failures, and a larger turn/time budget sized to Terminal-Bench's own 900 s default, tried together and measured against this run as the baseline.
+
+Next: run 2 with the time caps already in place (they are merged into `main`, see `docs/harbor.md`, "Time caps") and one harness change chosen from these patterns, once the three `docs/OPEN-QUESTIONS.md` defaults are applied in code. See `experiments.yaml`, entry `harbor-tb21-run2`.

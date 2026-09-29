@@ -14,6 +14,7 @@ Barebones Agent is a hand-built agent harness (Python, TypeScript, and Go versio
 | Wave 4 smoke | 9 Python-harness configs, 3 envs x 3 codebases | mixed | 18 trials, 12 passed, 0 infra errors. `docs/pilot.md`, "After the pilot". |
 | Wave 6 harness check | baseline, 3 harnesses, tasks 01 and 07 | mixed | 6 of 6 trials valid, same first-call prompt tokens (527) for all three. |
 | Wave 6 stage 2 smoke | 10 stage 2 configs, tasks 01 and 07 | mixed | 20 of 20 trials valid, 10 passed, 0 infra errors. |
+| Terminal-Bench 2.1 subset, run 1 | `py.files-bash.harbor.terminal-bench-2-1.qwen3-8b.no-think` | 0.000 | 0 of 20, ran 2026-09-29. 13 end_turn, 4 max_turns, 2 max_seconds, 1 infra_error; no exit-139. `docs/pilot.md`, "Terminal-Bench 2.1 subset, run 1". |
 
 Experiment 1 (prompt v1 or v2, thinking off or on), 30 trials per cell, on `local`:
 
@@ -41,6 +42,8 @@ Two levers against the stage 2 baseline, 30 trials each, ran 2026-09-27: 0 infra
 See `docs/pilot.md`, section "Lever experiments", for the per-task table and both readings.
 
 The Harbor smoke ran one task, `write-compressor`, from Terminal-Bench 2.1 (2026-09-27/28): the chain works end to end (image pull, agent run in the container, verifier, reward), 1/1 trial, 0 infra errors. The agent stopped at 3 turns and 8.3 seconds (`end_turn`, well under the 20-turn / 300-second budget), tried piping the input file through the decompressor (which segfaulted under container CPU emulation), then wrote an empty output file and stopped. The verifier passed 2 of 3 hidden tests but gave a reward of 0. See `docs/pilot.md`, section "Harbor smoke", for the full write-up and the checklist for the 20-task subset.
+
+The 20-task Terminal-Bench 2.1 subset ran 2026-09-29, 03:27 UTC to 11:58 local: 0 of 20, 0 infra errors beyond the 1 model-degenerate trial counted below, no exit-139. Stops: 13 `end_turn`, 4 `max_turns`, 2 `max_seconds`, 1 `infra_error` (`dna-assembly`, an Ollama 500 "token repeat limit reached" before turn 1). Failure patterns: claimed done with no way to check the work (6), repeat loop that hit a limit while still stuck (5), gave up after a few failed tries (3), stuck reading or listing the same files (2), asked the user against the system prompt's rule (2), model degenerated (1), empty reply with no tool call (1). About 11.6 of the run's 12.5 hours came from 4 tasks (1 to 4 hours each) where a Mac sleep overnight and qemu (`amd64`-on-`arm64`) emulation dominated the wall clock; the other 16 tasks took 46 to 852 seconds each. See `docs/pilot.md`, section "Terminal-Bench 2.1 subset, run 1", for the per-task table, the pattern table with quotes, and the three conclusions.
 
 ## Decisions and their dates
 
@@ -86,7 +89,12 @@ Read `.coord/PROTOCOL.md` before any Ollama, Docker-heavy, or E2B run. Take the 
 
 - Experiment 1 ended on 2026-09-25 at 19:18. Stage 2 ended 2026-09-26 at 23:00 UTC, 270 of 270 trials valid, 0 infra errors. Both locks are released.
 - Lever 1, lever 2, the lever 2 confirmation, lever 3, and the Harbor smoke all ended 2026-09-27/28, 0 infra errors. All locks are released.
-- Next GO candidate: `harbor-terminal-bench-2.1-subset`, the 20-task Terminal-Bench 2.1 subset (about 4 h), waiting on the coordinator's GO. The task list and the selection rule are filled in `experiments.yaml`.
+- `harbor-terminal-bench-2.1-subset`, the 20-task Terminal-Bench 2.1 subset, ended 2026-09-29 at 11:58 local (about 12.5 hours, mostly sleep and qemu on 4 tasks). 0 of 20; see `docs/pilot.md`, "Terminal-Bench 2.1 subset, run 1", for the per-task table and the failure patterns. The lock is released.
+- What is waiting on whom for `harbor-tb21-run2` (the next GO candidate): three LIGHT code changes, no GO needed to make them:
+  1. Raise the Harbor `bash` timeout from 30 s to 120 s in `src/harness/python/env/harbor.py` (`env: harbor` only).
+  2. Write `config/system_prompt_v3.txt`: prompt v2 plus a line telling the model to keep going instead of stopping to ask (5 of 20 subset trials asked the user or gave up).
+  3. Set the Harbor budget to 40 turns / 600 seconds awake, under `HARBOR_WALL_SECONDS`'s 10-minute real-time cap (Terminal-Bench's own per-task default is 900 s; our 300 s is well under it).
+  Once those three land, `harbor-tb21-run2` needs the coordinator's GO. See `docs/OPEN-QUESTIONS.md`, 2026-09-29, and `experiments.yaml`, entry `harbor-tb21-run2`, for the exact command.
 - Waiting on the owner: whether to adopt `files` + `auto_check` as the working setting for the private suite (`config/baseline.yaml` would get `tools: files` and `auto_check: python -m pytest -q tests`, one line each, but it moves the frozen baseline). See `docs/OPEN-QUESTIONS.md`, 2026-09-27, "Lever 3".
 - The lever 1 (`tool_errors`), lever 2 (`auto_check`), and Harbor adapter (`env: harbor`) builds are merged into `main`. `tool_errors` picks the `edit_file` error format (`plain` or `rich`, Python harness only). `auto_check` runs a shell command after a successful `edit_file` and appends its output (Python harness only). Both keys default to null/absent, byte-identical to today's behavior. See `docs/harness-spec.md`, section 15, items (i) and (j), and `docs/harbor.md`.
 - To read a finished lever run: `uv run python src/evals/report.py --compare <baseline-dir> <experiment-dir>` for the per-task pass table and the pass@1/pass^k/seconds/turns summary, and `uv run python src/evals/analyze.py <experiment-dir>` for stop reasons, tool calls, and failure patterns (repeat loops, claimed-done-but-failed).
