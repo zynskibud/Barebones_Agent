@@ -19,6 +19,9 @@ EXIT_CODES = {
     "max_seconds": 2,
     "malformed_tool_call": 2,
     "infra_error": 3,
+    # wall_clock only ever comes from the Harbor adapter (docs/harbor.md, "Time caps").
+    # No other entry point produces this stop reason.
+    "wall_clock": 2,
 }
 
 RESULT_PREVIEW_CHARS = 300

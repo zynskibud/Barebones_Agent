@@ -6,6 +6,7 @@ Run: uv run python -m pytest src/evals -q
 import asyncio
 import json
 import sys
+import time
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
@@ -34,6 +35,9 @@ SPEC_KEYS = [
     "model", "model_digest", "num_ctx", "temperature", "think", "exit_code", "tool_calls",
     "malformed_tool_calls", "passed", "grader_output",
 ]
+# The Harbor adapter's own result.json adds wall_seconds on top of the spec keys
+# (docs/harbor.md, "Time caps"). The eval-side result.json contract does not change.
+HARBOR_KEYS = SPEC_KEYS + ["wall_seconds"]
 
 
 class FakeModel:
@@ -44,6 +48,28 @@ class FakeModel:
 
     def chat(self, messages, definitions, timeout=None):
         return {"message": {"role": "assistant", "content": "done"}, "prompt_eval_count": 7, "eval_count": 2}
+
+    def digest(self):
+        return "fake-digest"
+
+    def loaded_context_length(self):
+        return 4096
+
+    def default_parameters(self):
+        return {"temperature": "0.6"}
+
+
+class SleepyModel:
+    """A model whose call sleeps, so a tight HARBOR_WALL_SECONDS can fire while it waits."""
+
+    SLEEP_SECONDS = 0.6
+
+    def __init__(self, **settings) -> None:
+        self.settings = settings
+
+    def chat(self, messages, definitions, timeout=None):
+        time.sleep(self.SLEEP_SECONDS)
+        return {"message": {"role": "assistant", "content": "done"}, "prompt_eval_count": 1, "eval_count": 1}
 
     def digest(self):
         return "fake-digest"
@@ -81,13 +107,49 @@ def test_run_writes_transcript_and_result(tmp_path, monkeypatch):
     asyncio.run(agent.run("Fix the repo.", environment, context))
 
     result = json.loads((logs / "result.json").read_text())
-    assert list(result) == SPEC_KEYS
+    assert list(result) == HARBOR_KEYS
     assert result["task"] == "fix-git"
     assert result["stop_reason"] == "end_turn"
     assert result["turns"] == 1
     assert result["config_id"] == "py.files-bash.harbor.terminal-bench-2-1.qwen3-8b.no-think"
+    assert isinstance(result["wall_seconds"], float) and result["wall_seconds"] >= 0
     lines = [json.loads(line) for line in (logs / "transcript.jsonl").read_text().splitlines()]
     assert [line["type"] for line in lines] == ["config", "system", "user", "assistant", "end"]
     assert lines[2]["content"] == "Fix the repo."
     assert lines[1]["content"] == (REPO_ROOT / "config" / "system_prompt_v2.txt").read_text().rstrip()
     assert context.n_input_tokens == 7 and context.n_output_tokens == 2
+
+
+def test_wall_clock_cap_fires_with_a_slow_model(tmp_path, monkeypatch):
+    """A tight HARBOR_WALL_SECONDS, against a model call that outlasts it, gives wall_clock."""
+    monkeypatch.setattr(build, "Model", SleepyModel)
+    monkeypatch.setenv("HARBOR_SET", "prompt=config/system_prompt_v2.txt")
+    monkeypatch.setenv("HARBOR_WALL_SECONDS", "0.2")
+    assert SleepyModel.SLEEP_SECONDS > 0.2  # the cap must fire while chat() is still sleeping
+    root = tmp_path / "container" / "app"
+    root.mkdir(parents=True)
+    logs = tmp_path / "trial" / "agent"
+    agent = adapter.BarebonesAgent(logs_dir=logs)
+    agent.session_id = "slow-task__AbC1234__agent"
+    context = AgentContext()
+    environment = FakeEnvironment(root, workdir=str(root))
+    asyncio.run(agent.run("Fix the repo.", environment, context))
+
+    result = json.loads((logs / "result.json").read_text())
+    assert list(result) == HARBOR_KEYS
+    assert result["task"] == "slow-task"
+    assert result["stop_reason"] == "wall_clock"
+    assert result["turns"] == 0
+    assert isinstance(result["wall_seconds"], float) and result["wall_seconds"] >= 0.2
+    assert result["seconds"] == result["wall_seconds"]
+    assert context.metadata["stop_reason"] == "wall_clock"
+
+    lines = [json.loads(line) for line in (logs / "transcript.jsonl").read_text().splitlines()]
+    assert lines[0]["type"] == "config"
+    assert lines[-1] == {"type": "end", "stop_reason": "wall_clock", "turns": 0, "seconds": result["seconds"]}
+    # The loop thread, still asleep when the cap fired, must not get a second chance to
+    # write once it wakes: no more lines land after the cap's own end record.
+    time.sleep(SleepyModel.SLEEP_SECONDS)
+    lines_after = (logs / "transcript.jsonl").read_text().splitlines()
+    assert len(lines_after) == len(lines)
+    assert json.loads((logs / "result.json").read_text()) == result

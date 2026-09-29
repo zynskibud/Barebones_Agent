@@ -16,11 +16,20 @@ HARBOR_SET=prompt=config/system_prompt_v2.txt,think=true
 
 Start it from the repo root with PYTHONPATH=. and
 --agent src.evals.harbor.agent:BarebonesAgent (docs/harbor.md).
+
+Time cap: docs/harbor.md, "Time caps". HARBOR_WALL_SECONDS bounds the real (wall-clock)
+time of the agent phase, so a sleeping laptop cannot turn one task into hours of
+qemu-emulated Terminal-Bench work. loop.py's own max_seconds budget is awake time only
+(time.monotonic, which does not advance across a system sleep); this cap uses time.time,
+which does.
 """
 
 import asyncio
+import json
 import os
 import sys
+import threading
+import time
 import traceback
 from pathlib import Path
 
@@ -40,6 +49,8 @@ from main import EXIT_CODES, crash_run, make_writer, open_transcript, used_setti
 BASELINE = REPO_ROOT / "config" / "baseline.yaml"
 OVERRIDES_VARIABLE = "HARBOR_SET"
 FIXED = {"env": "harbor", "codebase": "terminal-bench-2-1"}
+WALL_SECONDS_VARIABLE = "HARBOR_WALL_SECONDS"
+DEFAULT_WALL_SECONDS = 600.0
 
 
 def harbor_config(overrides: str | None) -> dict:
@@ -66,6 +77,56 @@ def task_name(session_id: str | None, logs_dir: Path) -> str:
     return trial.split("__")[0]
 
 
+def wall_seconds_limit() -> float:
+    """Return the real-time cap on the agent phase, in seconds."""
+    raw = os.environ.get(WALL_SECONDS_VARIABLE)
+    return float(raw) if raw else DEFAULT_WALL_SECONDS
+
+
+def add_wall_seconds(path: Path, wall_seconds: float) -> None:
+    """Add wall_seconds to a result.json the adapter already wrote."""
+    data = json.loads(path.read_text(encoding="utf-8"))
+    data["wall_seconds"] = round(wall_seconds, 1)
+    path.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+
+
+def wall_clock_run(seconds: float) -> dict:
+    """The run facts for a trial that hit HARBOR_WALL_SECONDS before the loop finished.
+
+    Like main.crash_run, the counts the harness could not observe are 0.
+    """
+    return {
+        "stop_reason": "wall_clock",
+        "turns": 0,
+        "seconds": round(seconds, 1),
+        "prompt_tokens": 0,
+        "completion_tokens": 0,
+        "tool_calls": 0,
+        "malformed_tool_calls": 0,
+        "error": None,
+    }
+
+
+def write_wall_clock_result(config: dict, out_dir: Path, task: str, wall_seconds: float) -> dict:
+    """Write result.json, and append the transcript end record, for a trial that hit the cap.
+
+    expired (set by the caller) stops the loop thread from writing either file after this
+    point, so this is the only write. See docs/harbor.md, "Time caps".
+    """
+    run = wall_clock_run(wall_seconds)
+    used = {"model_digest": None, "num_ctx": config.get("num_ctx"), "temperature": config.get("temperature")}
+    out_dir.mkdir(parents=True, exist_ok=True)
+    result_path = out_dir / "result.json"
+    write_result(str(result_path), config, run, used, EXIT_CODES["wall_clock"], task=task)
+    add_wall_seconds(result_path, wall_seconds)
+    transcript_path = out_dir / "transcript.jsonl"
+    if transcript_path.exists():
+        end = {"type": "end", "stop_reason": "wall_clock", "turns": run["turns"], "seconds": run["seconds"]}
+        with transcript_path.open("a", encoding="utf-8") as handle:
+            handle.write(json.dumps(end, ensure_ascii=False) + "\n")
+    return run
+
+
 async def find_workdir(environment: BaseEnvironment) -> str:
     """Return the container work root: the task workdir, or else the shell's start folder."""
     config = getattr(environment, "task_env_config", None)
@@ -90,24 +151,60 @@ class BarebonesAgent(BaseAgent):
         """Nothing to install: the harness and the model stay on the host."""
 
     async def run(self, instruction: str, environment: BaseEnvironment, context: AgentContext) -> None:
-        """Run the loop on the instruction and write the transcript and result.json."""
+        """Run the loop on the instruction and write the transcript and result.json.
+
+        HARBOR_WALL_SECONDS bounds the real time of this phase (docs/harbor.md,
+        "Time caps"). The loop runs in a thread so that Harbor's event loop stays free.
+        If the thread is not done by the cap, this stops waiting for it, sets expired so
+        the thread's own writes become no-ops and its loop stops before its next model
+        call, writes result.json itself with stop_reason "wall_clock", and returns so
+        Harbor proceeds to the verifier. The thread may keep running briefly in the
+        background; expired keeps it from touching the files once this has.
+        """
         config = harbor_config(os.environ.get(OVERRIDES_VARIABLE))
         workdir = await find_workdir(environment)
         loop = asyncio.get_running_loop()
         options = {"environment": environment, "loop": loop}
         task = task_name(self.session_id, Path(self.logs_dir))
-        # The loop is sync. It runs in a thread so that Harbor's event loop stays free.
-        run = await asyncio.to_thread(run_task, config, workdir, options, instruction, Path(self.logs_dir), task)
+        out_dir = Path(self.logs_dir)
+        expired = threading.Event()
+        started = time.time()
+        worker = asyncio.to_thread(run_task, config, workdir, options, instruction, out_dir, task, expired, started)
+        try:
+            run = await asyncio.wait_for(worker, timeout=wall_seconds_limit())
+        except asyncio.TimeoutError:
+            expired.set()
+            run = write_wall_clock_result(config, out_dir, task, time.time() - started)
         context.n_input_tokens = run["prompt_tokens"]
         context.n_output_tokens = run["completion_tokens"]
         context.metadata = {"stop_reason": run["stop_reason"], "turns": run["turns"], "seconds": run["seconds"]}
 
 
-def run_task(config: dict, workdir: str, options: dict, prompt: str, out_dir: Path, task: str) -> dict:
-    """Task mode on a Harbor environment. Mirrors main.run_task. Return the run facts."""
+def run_task(
+    config: dict,
+    workdir: str,
+    options: dict,
+    prompt: str,
+    out_dir: Path,
+    task: str,
+    expired: threading.Event,
+    started: float,
+) -> dict:
+    """Task mode on a Harbor environment. Mirrors main.run_task. Return the run facts.
+
+    expired is set from outside, by the adapter, once HARBOR_WALL_SECONDS has passed
+    (docs/harbor.md, "Time caps"). Once it is set, record becomes a no-op, run_loop
+    stops before its next model call, and this writes no result.json: the adapter
+    already wrote the authoritative one.
+    """
     out_dir.mkdir(parents=True, exist_ok=True)
     transcript = open_transcript(str(out_dir / "transcript.jsonl"), config)
-    record = make_writer(transcript)
+    base_record = make_writer(transcript)
+
+    def record(entry: dict) -> None:
+        if not expired.is_set():
+            base_record(entry)
+
     try:
         agent = build_agent(config, workdir, options)
         prompt = prompt.rstrip()
@@ -119,7 +216,9 @@ def run_task(config: dict, workdir: str, options: dict, prompt: str, out_dir: Pa
         ]
         try:
             agent.env.start()
-            run = run_loop(agent.model, agent.tools, messages, agent.max_turns, agent.max_seconds, record)
+            run = run_loop(
+                agent.model, agent.tools, messages, agent.max_turns, agent.max_seconds, record, expired.is_set
+            )
         finally:
             agent.env.stop()
         used = used_settings(agent, config)
@@ -130,5 +229,8 @@ def run_task(config: dict, workdir: str, options: dict, prompt: str, out_dir: Pa
         record({"type": "end", "stop_reason": "infra_error", "turns": 0, "seconds": 0.0, "error": detail})
         used = {"model_digest": None, "num_ctx": config.get("num_ctx"), "temperature": config.get("temperature")}
     transcript.close()
-    write_result(str(out_dir / "result.json"), config, run, used, EXIT_CODES[run["stop_reason"]], task=task)
+    if not expired.is_set():
+        result_path = out_dir / "result.json"
+        write_result(str(result_path), config, run, used, EXIT_CODES[run["stop_reason"]], task=task)
+        add_wall_seconds(result_path, time.time() - started)
     return run

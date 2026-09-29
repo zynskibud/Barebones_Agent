@@ -215,11 +215,14 @@
   priority: 1
   status: ready
   command: >-
-    caffeinate -i env PYTHONPATH=. HARBOR_SET=prompt=config/system_prompt_v2.txt
+    caffeinate -i env PYTHONPATH=. HARBOR_SET=prompt=config/system_prompt_v2.txt HARBOR_WALL_SECONDS=600
     uv run harbor run
     --dataset terminal-bench/terminal-bench-2-1
     --agent src.evals.harbor.agent:BarebonesAgent
     --n-concurrent 1
+    --environment-build-timeout-multiplier 1.0
+    --verifier-timeout-multiplier 0.67
+    --agent-timeout-multiplier 0.67
     --jobs-dir runs/harbor-tb21
     --job-name tb21-subset
     -i terminal-bench/adaptive-rejection-sampler -i terminal-bench/build-pmars -i terminal-bench/chess-best-move -i terminal-bench/compile-compcert -i terminal-bench/crack-7z-hash
@@ -251,7 +254,20 @@
     (4) est_hours assumes 300 s for our loop plus about 5 min of build and verifier per task; Harbor's own per-task agent timeout is longer than our max_seconds, so our loop ends first;
     (5) the dataset name is confirmed (harbor dataset download terminal-bench/terminal-bench-2-1 --export lists 89 tasks under terminal-bench-2-1/); the harbor-smoke run already did the one-task smoke test;
     (6) the container images must have bash and GNU timeout;
-    (7) the harbor-smoke task (write-compressor, not in this subset) showed the model can give up after one failed guess well inside the time and turn limits, and that its final message can violate the "do not ask the user questions" rule; watch for both in the subset, and note that Harbor's reward is not always a simple fraction of tests passed.
+    (7) the harbor-smoke task (write-compressor, not in this subset) showed the model can give up after one failed guess well inside the time and turn limits, and that its final message can violate the "do not ask the user questions" rule; watch for both in the subset, and note that Harbor's reward is not always a simple fraction of tests passed;
+    (8) time caps, added after the machine slept overnight during qemu-emulated runs
+    (docs/harbor.md, "Time caps"): the 19 tasks' task.toml files give typical Terminal-
+    Bench 2.1 defaults of agent_timeout_sec 900, verifier_timeout_sec 900, and
+    build_timeout_sec 600 (outliers: compile-compcert and dna-assembly run longer; read
+    with runs/harbor-tb21/tb21-subset/config.json, task_names, against
+    ~/.cache/harbor/tasks/packages/terminal-bench/<task>/*/task.toml). To bring each
+    phase to about 10 minutes (600 s): build needs no change, 600 * 1.0 = 600 s, so
+    --environment-build-timeout-multiplier 1.0; verifier and agent both need
+    600 / 900 = 0.667, rounded to --verifier-timeout-multiplier 0.67 and
+    --agent-timeout-multiplier 0.67. HARBOR_WALL_SECONDS=600 caps the adapter's own
+    real (wall-clock) time on the agent phase, on top of Harbor's multiplier, so a sleep
+    cannot stretch it; expiry = emulation timeout, excluded from the score with a note
+    (src/evals/harbor/score.py).
 
 - id: full-grid-v2
   priority: 5

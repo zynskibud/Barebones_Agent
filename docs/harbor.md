@@ -72,6 +72,32 @@ caffeinate -i env PYTHONPATH=. HARBOR_SET=prompt=config/system_prompt_v2.txt \
 - `runs/harbor-tb21/tb21-subset/<task>__<id>/agent/transcript.jsonl` and `result.json`: ours, in the spec format. `task` is the Harbor task name. `trial` is null, because the folder is named `agent`. `passed` stays null.
 - The rest of the trial folder, for example `verifier/` and the trial `result.json`: Harbor's, with the reward.
 
+## Time caps
+
+Three layers bound how long one task can take, real time included:
+
+1. Harbor's own multipliers (`--environment-build-timeout-multiplier`,
+   `--agent-timeout-multiplier`, `--verifier-timeout-multiplier`), on the `--dataset`
+   values for the build, the agent, and the verifier. Harbor measures these in real
+   time and kills the phase itself. See `experiments.yaml`, entry
+   `harbor-terminal-bench-2.1-subset`, for the values chosen and the arithmetic.
+2. The adapter's real-time cap, `HARBOR_WALL_SECONDS` (env var, default 600 seconds),
+   in `src/evals/harbor/agent.py`. It measures the whole agent phase with `time.time()`,
+   which counts a system sleep. If the loop thread is not done by the cap, the adapter
+   stops waiting, sets a flag that stops the loop before its next model call, writes
+   `result.json` itself with `stop_reason: "wall_clock"` and `wall_seconds` (the real
+   elapsed time), and returns so Harbor proceeds to the verifier.
+3. The loop's own awake budget, `max_seconds` in `config/baseline.yaml` (300 seconds by
+   default). `src/harness/python/loop.py` measures this with `time.monotonic()`, which
+   does not advance across a system sleep. This is why layer 2 exists: a laptop that
+   sleeps during a run can make layer 3 alone let a task run for hours of real time.
+
+Scoring rule: `src/evals/harbor/score.py` excludes a trial from the score if its agent
+`stop_reason` is `wall_clock` or its agent `exit_code` is 139 (a crash, for example a
+segfault under the qemu emulation that Terminal-Bench 2.1 tasks run under), and lists it
+separately as "emulation: excluded". A trial with no `agent/result.json` at all (the
+agent phase never finished setup) is excluded too, as "no agent run".
+
 ## Not known until a real run
 
 - The exact dataset reference that `--dataset` accepts for Terminal-Bench 2.1.
