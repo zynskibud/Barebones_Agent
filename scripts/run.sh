@@ -102,6 +102,10 @@ release_lock() {
   rm -rf "$LOCK_DIR"
 }
 trap release_lock EXIT INT TERM
+# A gpu.next reservation for this job is used up once the lock is taken.
+if [ -f "$AI_ENGINEERING_ROOT/.coord/gpu.next" ] && grep -q "barebones $EXPERIMENT_ID" "$AI_ENGINEERING_ROOT/.coord/gpu.next"; then
+  rm -f "$AI_ENGINEERING_ROOT/.coord/gpu.next"
+fi
 
 RESULTS_DIR="$REPO_ROOT/${RESULTS:-runs/$EXPERIMENT_ID}"
 mkdir -p "$RESULTS_DIR"

@@ -7,8 +7,19 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 COORD="$(cd "$REPO_ROOT/.." && pwd)/.coord"
 cd "$REPO_ROOT"
 for id in "$@"; do
-  while [ -d "$COORD/gpu.lock" ] || [ -d "$COORD/heavy.lock" ] || [ -d "$COORD/timing.lock" ]; do
-    echo "$(date '+%F %T') waiting: locks held: $(ls "$COORD" | grep -E 'lock$' | tr '\n' ' ')"
+  # Wait while a lock is held, while gpu.next reserves the GPU for another job,
+  # or while free disk is under the preflight floor (15 GB).
+  while true; do
+    reason=""
+    held="$(ls "$COORD" | grep -E 'lock$' | tr '\n' ' ')"
+    [ -n "$held" ] && reason="locks held: $held"
+    if [ -f "$COORD/gpu.next" ] && ! grep -q "barebones $id" "$COORD/gpu.next"; then
+      reason="$reason gpu.next reserved for: $(cat "$COORD/gpu.next")"
+    fi
+    free_gb=$(df -g / | awk 'NR==2 {print $4}')
+    [ "$free_gb" -lt 15 ] && reason="$reason disk free ${free_gb} GB (needs 15)"
+    [ -z "$reason" ] && break
+    echo "$(date '+%F %T') waiting: $reason"
     sleep 300
   done
   folder="$(uv run python -c "import sys,yaml; d=yaml.safe_load(open('experiments.yaml')); print([x for x in d if x['id']==sys.argv[1]][0]['results'])" "$id")"
